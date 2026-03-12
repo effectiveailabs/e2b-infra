@@ -162,6 +162,7 @@ func New(
 			AddSandboxToRoutingTable: o.addSandboxToRoutingTable,
 			AsyncSandboxCounter:      o.sandboxCounterInsert,
 			AsyncNewlyCreatedSandbox: o.handleNewlyCreatedSandbox,
+			RemoveSandboxFromNode:    o.killOrphanSandbox,
 		},
 	)
 
