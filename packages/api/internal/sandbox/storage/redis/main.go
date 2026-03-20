@@ -72,6 +72,9 @@ func (s *Storage) Sync(ctx context.Context, sbxs []sandbox.Sandbox, nodeID strin
 			key: getSandboxKey(team, sbx.SandboxID),
 		})
 	}
+	if len(teamCandidates) == 0 {
+		return nil
+	}
 
 	// Pipeline per-team MGET calls.
 	pipe := s.redisClient.Pipeline()
