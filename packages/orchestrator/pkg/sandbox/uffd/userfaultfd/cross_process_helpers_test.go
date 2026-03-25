@@ -19,6 +19,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"testing"
 
@@ -364,6 +365,36 @@ func crossProcessServe() error {
 	signal.Notify(offsetsSignal, syscall.SIGUSR2)
 	defer signal.Stop(offsetsSignal)
 
+	fdExit, err := fdexit.New()
+	if err != nil {
+		return fmt.Errorf("exit creating fd exit: %w", err)
+	}
+	defer fdExit.Close()
+
+	exitUffd := make(chan struct{}, 1)
+
+	go func() {
+		defer func() { exitUffd <- struct{}{} }()
+
+		serverErr := uffd.Serve(ctx, fdExit)
+		if serverErr != nil {
+			msg := fmt.Errorf("error serving: %w", serverErr)
+			fmt.Fprint(os.Stderr, msg.Error())
+			cancel(msg)
+		}
+	}()
+
+	// cleanupOnce ensures cleanup is idempotent: the deferred call is a no-op if
+	// the SIGUSR2 handler already stopped the serve loop.
+	var cleanupOnce sync.Once
+	cleanup := func() {
+		cleanupOnce.Do(func() {
+			fdExit.SignalExit()
+			<-exitUffd
+		})
+	}
+	defer cleanup()
+
 	go func() {
 		defer offsetsFile.Close()
 
@@ -372,6 +403,28 @@ func crossProcessServe() error {
 			case <-ctx.Done():
 				return
 			case <-offsetsSignal:
+				// Stop the serve loop so we can safely drain remaining uffd events.
+				// For some page sizes (e.g. hugepages), madvise(MADV_DONTNEED) may
+				// return before UFFD_EVENT_REMOVE is delivered to the fd, so the serve
+				// loop might not have processed all REMOVE events yet. Stopping the loop
+				// and draining the fd here eliminates that race entirely.
+				cleanup()
+
+				removes, _, drainErr := uffd.readEvents(ctx)
+				if drainErr != nil {
+					msg := fmt.Errorf("error draining uffd events: %w", drainErr)
+
+					fmt.Fprint(os.Stderr, msg.Error())
+
+					cancel(msg)
+
+					return
+				}
+
+				for _, rm := range removes {
+					uffd.pageTracker.setState(uintptr(rm.start), uintptr(rm.end), removed)
+				}
+
 				entries, entriesErr := uffd.pageStateEntries()
 				if entriesErr != nil {
 					msg := fmt.Errorf("error getting page state entries: %w", entriesErr)
@@ -400,31 +453,6 @@ func crossProcessServe() error {
 			}
 		}
 	}()
-
-	fdExit, err := fdexit.New()
-	if err != nil {
-		return fmt.Errorf("exit creating fd exit: %w", err)
-	}
-	defer fdExit.Close()
-
-	exitUffd := make(chan struct{}, 1)
-
-	go func() {
-		defer func() { exitUffd <- struct{}{} }()
-
-		serverErr := uffd.Serve(ctx, fdExit)
-		if serverErr != nil {
-			msg := fmt.Errorf("error serving: %w", serverErr)
-			fmt.Fprint(os.Stderr, msg.Error())
-			cancel(msg)
-		}
-	}()
-
-	cleanup := func() {
-		fdExit.SignalExit()
-		<-exitUffd
-	}
-	defer cleanup()
 
 	if os.Getenv("GO_GATED") == "1" {
 		gateCmdFile := os.NewFile(uintptr(7), "gate-cmd")
