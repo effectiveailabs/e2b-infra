@@ -39,7 +39,11 @@ tf_vars := \
 	$(call tfvar, GCP_REGION) \
 	$(call tfvar, GCP_ZONE) \
 	$(call tfvar, DOMAIN_NAME) \
+	$(call tfvar, POSTGRES_CONNECTION_STRING) \
 	$(call tfvar, PREFIX) \
+	$(call tfvar, NETWORK_NAME) \
+	$(call tfvar, NETWORK_SUBNET_NAME) \
+	$(call tfvar, CORE_REPOSITORY_NAME) \
 	$(call tfvar, SANDBOX_STORAGE_BACKEND) \
 	$(call tfvar, ALLOW_SANDBOX_INTERNET) \
 	$(call tfvar, API_SERVER_COUNT) \

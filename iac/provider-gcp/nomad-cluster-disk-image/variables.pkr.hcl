@@ -10,6 +10,10 @@ variable "network_name" {
   type = string
 }
 
+variable "subnetwork_name" {
+  type = string
+}
+
 variable "prefix" {
   type    = string
   default = "e2b-"

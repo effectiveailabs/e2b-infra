@@ -183,6 +183,10 @@ variable "network_name" {
   type = string
 }
 
+variable "network_subnet_name" {
+  type = string
+}
+
 variable "google_service_account_email" {
   type = string
 }
@@ -275,9 +279,6 @@ variable "filestore_cache_enabled" {
   default = false
 }
 
-variable "cloudflare_api_token_secret_name" {
-  type = string
-}
 
 variable "filestore_cache_tier" {
   type    = string

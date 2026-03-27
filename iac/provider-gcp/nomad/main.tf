@@ -36,7 +36,9 @@ data "google_secret_manager_secret_version" "launch_darkly_api_key" {
 }
 
 provider "nomad" {
-  address      = "https://nomad.${var.domain_name}"
+  # EFFECTIVEAI: private Cloud DNS resolves nomad over the internal HTTP load
+  # balancer, so Terraform should not expect public TLS here.
+  address      = "http://nomad.${var.domain_name}"
   secret_id    = var.nomad_acl_token_secret
   consul_token = var.consul_acl_token_secret
 }
@@ -501,7 +503,7 @@ module "template_manager" {
   launch_darkly_api_key           = trimspace(data.google_secret_manager_secret_version.launch_darkly_api_key.secret_data)
   shared_chunk_cache_path         = var.shared_chunk_cache_path
 
-  nomad_addr  = "https://nomad.${var.domain_name}"
+  nomad_addr  = "http://nomad.${var.domain_name}"
   nomad_token = var.nomad_acl_token_secret
 }
 

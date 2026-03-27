@@ -101,8 +101,6 @@ module "network" {
 
   environment = var.environment
 
-  cloudflare_api_token_secret_name = var.cloudflare_api_token_secret_name
-
   gcp_project_id = var.gcp_project_id
   gcp_region     = var.gcp_region
 
@@ -114,6 +112,7 @@ module "network" {
   api_port                                = var.api_port
   docker_reverse_proxy_port               = var.docker_reverse_proxy_port
   network_name                            = var.network_name
+  network_subnet_name                     = var.network_subnet_name
   domain_name                             = var.domain_name
   additional_domains                      = var.additional_domains
   additional_api_paths_handled_by_ingress = var.additional_api_paths_handled_by_ingress
@@ -165,6 +164,7 @@ module "build_cluster" {
   cluster_name              = "${var.prefix}${var.build_cluster_name}-${each.key}"
   image_family              = var.build_image_family
   network_name              = var.network_name
+  network_subnet_name       = var.network_subnet_name
   base_hugepages_percentage = coalesce((each.value.hugepages_percentage), local.build_base_hugepages_percentage)
   network_interface_type    = each.value.network_interface_type
   node_labels               = each.value.node_labels
@@ -223,12 +223,14 @@ module "client_cluster" {
   cluster_name              = each.key == "default" ? "${var.prefix}${var.client_cluster_name}" : "${var.prefix}${var.client_cluster_name}-${each.key}"
   image_family              = var.client_image_family
   network_name              = var.network_name
+  network_subnet_name       = var.network_subnet_name
   base_hugepages_percentage = coalesce((each.value.hugepages_percentage), local.client_base_hugepages_percentage)
   network_interface_type    = each.value.network_interface_type
   node_labels               = each.value.node_labels
 
   cluster_tag_name                         = var.cluster_tag_name
   node_pool                                = var.orchestrator_node_pool
+  enable_nested_virtualization             = true
   nomad_port                               = var.nomad_port
   consul_acl_token_secret                  = var.consul_acl_token_secret
   nomad_acl_token_secret                   = var.nomad_acl_token_secret
