@@ -325,7 +325,7 @@ EOF
   local -r service_config=$(
     cat <<EOF
 [Service]
-Type=notify
+Type=simple
 User=$consul_user
 Group=$consul_user
 ExecStart=$consul_bin_dir/consul agent -config-dir $consul_config_dir -data-dir $consul_data_dir
@@ -333,7 +333,7 @@ ExecReload=$consul_bin_dir/consul reload
 ExecStop=$consul_bin_dir/consul leave
 KillMode=process
 Restart=on-failure
-TimeoutSec=300s
+TimeoutSec=30s
 LimitNOFILE=65536
 $(split_by_lines "Environment=" "${environment[@]}")
 EOF
