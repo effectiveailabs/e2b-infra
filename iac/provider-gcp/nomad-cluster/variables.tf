@@ -184,3 +184,8 @@ variable "api_boot_disk_type" { type = string }
 variable "server_boot_disk_type" { type = string }
 variable "server_boot_disk_size_gb" { type = number }
 variable "additional_api_paths_handled_by_ingress" { type = list(string) }
+
+variable "skip_project_iam_grants" {
+  type    = bool
+  default = true
+}

@@ -84,47 +84,47 @@ resource "google_storage_bucket" "fc_build_cache_bucket" {
 resource "google_storage_bucket_iam_member" "envs_docker_context_iam" {
   bucket = google_storage_bucket.envs_docker_context.name
   role   = "roles/storage.objectAdmin"
-  member = "serviceAccount:${google_service_account.infra_instances_service_account.email}"
+  member = "serviceAccount:${var.vm_service_account_email}"
 }
 
 resource "google_storage_bucket_iam_member" "envs_pipeline_iam" {
   bucket = google_storage_bucket.fc_env_pipeline_bucket.name
   role   = "roles/storage.objectViewer"
-  member = "serviceAccount:${google_service_account.infra_instances_service_account.email}"
+  member = "serviceAccount:${var.vm_service_account_email}"
 }
 
 resource "google_storage_bucket_iam_member" "instance_setup_bucket_iam" {
   bucket = google_storage_bucket.setup_bucket.name
   role   = "roles/storage.objectViewer"
-  member = "serviceAccount:${google_service_account.infra_instances_service_account.email}"
+  member = "serviceAccount:${var.vm_service_account_email}"
 }
 
 resource "google_storage_bucket_iam_member" "fc_kernels_bucket_iam" {
   bucket = google_storage_bucket.fc_kernels_bucket.name
   role   = "roles/storage.objectViewer"
-  member = "serviceAccount:${google_service_account.infra_instances_service_account.email}"
+  member = "serviceAccount:${var.vm_service_account_email}"
 }
 
 resource "google_storage_bucket_iam_member" "fc_versions_bucket_iam" {
   bucket = google_storage_bucket.fc_versions_bucket.name
   role   = "roles/storage.objectViewer"
-  member = "serviceAccount:${google_service_account.infra_instances_service_account.email}"
+  member = "serviceAccount:${var.vm_service_account_email}"
 }
 
 resource "google_storage_bucket_iam_member" "fc_build_cache_bucket_iam" {
   bucket = google_storage_bucket.fc_build_cache_bucket.name
   role   = "roles/storage.objectAdmin"
-  member = "serviceAccount:${google_service_account.infra_instances_service_account.email}"
+  member = "serviceAccount:${var.vm_service_account_email}"
 }
 
 resource "google_storage_bucket_iam_member" "fc_template_bucket_iam" {
   bucket = google_storage_bucket.fc_template_bucket.name
   role   = "roles/storage.objectAdmin"
-  member = "serviceAccount:${google_service_account.infra_instances_service_account.email}"
+  member = "serviceAccount:${var.vm_service_account_email}"
 }
 
 resource "google_storage_bucket_iam_member" "fc_template_bucket_iam_reader" {
   bucket = google_storage_bucket.fc_template_bucket.name
   role   = "roles/storage.legacyBucketReader"
-  member = "serviceAccount:${google_service_account.infra_instances_service_account.email}"
+  member = "serviceAccount:${var.vm_service_account_email}"
 }

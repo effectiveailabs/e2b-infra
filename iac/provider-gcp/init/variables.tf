@@ -16,3 +16,7 @@ variable "core_repository_id" {
   type    = string
   default = "e2b-core"
 }
+variable "vm_service_account_email" {
+  description = "Service account email for bucket IAM bindings (the SA that VMs use)."
+  type        = string
+}

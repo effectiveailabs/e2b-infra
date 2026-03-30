@@ -41,18 +41,21 @@ resource "google_secret_manager_secret_version" "consul_dns_request_token" {
 }
 
 resource "google_project_iam_member" "network_viewer" {
+  count   = var.skip_project_iam_grants ? 0 : 1
   project = var.gcp_project_id
   member  = "serviceAccount:${var.google_service_account_email}"
   role    = "roles/compute.networkViewer"
 }
 
 resource "google_project_iam_member" "monitoring_editor" {
+  count   = var.skip_project_iam_grants ? 0 : 1
   project = var.gcp_project_id
   member  = "serviceAccount:${var.google_service_account_email}"
   role    = "roles/monitoring.editor"
 }
 
 resource "google_project_iam_member" "logging_writer" {
+  count   = var.skip_project_iam_grants ? 0 : 1
   project = var.gcp_project_id
   member  = "serviceAccount:${var.google_service_account_email}"
   role    = "roles/logging.logWriter"
