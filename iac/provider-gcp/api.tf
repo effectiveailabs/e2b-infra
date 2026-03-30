@@ -1,7 +1,7 @@
 resource "google_artifact_registry_repository" "custom_environments_repository" {
   format        = "DOCKER"
-  repository_id = "${var.prefix}custom-environments"
-  labels        = var.labels
+  repository_id = "e2b-environments"
+  labels        = local.common_labels
 }
 
 resource "google_artifact_registry_repository_iam_member" "custom_environments_repository_member" {
@@ -11,7 +11,7 @@ resource "google_artifact_registry_repository_iam_member" "custom_environments_r
 }
 
 resource "google_secret_manager_secret" "postgres_read_replica_connection_string" {
-  secret_id = "${var.prefix}postgres-read-replica-connection-string"
+  secret_id = "e2b-${var.environment}-postgres-read-replica-connection-string"
 
   replication {
     auto {}
@@ -33,7 +33,7 @@ resource "random_password" "api_secret" {
 }
 
 resource "google_secret_manager_secret" "api_secret" {
-  secret_id = "${var.prefix}api-secret"
+  secret_id = "e2b-${var.environment}-api-secret"
 
   replication {
     auto {}
@@ -53,7 +53,7 @@ resource "random_password" "api_admin_secret" {
 
 
 resource "google_secret_manager_secret" "api_admin_token" {
-  secret_id = "${var.prefix}api-admin-token"
+  secret_id = "e2b-${var.environment}-api-admin-token"
   replication {
     auto {}
   }
@@ -71,7 +71,7 @@ resource "random_password" "sandbox_access_token_hash_seed" {
 
 
 resource "google_secret_manager_secret" "sandbox_access_token_hash_seed" {
-  secret_id = "${var.prefix}sandbox-access-token-hash-seed"
+  secret_id = "e2b-${var.environment}-sandbox-access-token-hash-seed"
   replication {
     auto {}
   }

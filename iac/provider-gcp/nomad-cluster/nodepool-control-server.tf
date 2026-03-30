@@ -106,7 +106,7 @@ resource "google_compute_instance_template" "server" {
     } : {})
   )
   scheduling {
-    on_host_maintenance = "MIGRATE"
+    on_host_maintenance = "TERMINATE"
   }
 
   disk {
@@ -117,14 +117,8 @@ resource "google_compute_instance_template" "server" {
   }
 
   network_interface {
-    network = var.network_name
-
-    # Create access config dynamically. If a public ip is requested, we just need the empty `access_config` block
-    # to automatically assign an external IP address.
-    dynamic "access_config" {
-      for_each = ["public_ip"]
-      content {}
-    }
+    network    = var.network_name
+    subnetwork = var.subnetwork_name
   }
 
   service_account {

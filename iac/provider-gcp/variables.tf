@@ -1,31 +1,252 @@
-variable "gcp_project_id" {
-  description = "The project to deploy the cluster in"
+variable "environment" {
+  description = "Logical environment label for the E2B deployment."
+  type        = string
+  default     = "prod"
+}
+
+variable "project_id" {
+  description = "GCP project ID."
+  type        = string
+  default     = "gen-lang-client-0802504039"
+}
+
+variable "project_number" {
+  description = "Numeric GCP project number."
+  type        = string
+  default     = "487957898723"
+}
+
+variable "region" {
+  description = "Primary GCP region."
+  type        = string
+  default     = "us-central1"
+}
+
+variable "zone" {
+  description = "Primary GCP zone."
+  type        = string
+  default     = "us-central1-a"
+}
+
+variable "labels" {
+  description = "Additional labels to apply to resources."
+  type        = map(string)
+  default     = {}
+}
+
+variable "network_name" {
+  description = "Name of the shared VPC network to attach to."
   type        = string
 }
 
-variable "gcp_region" {
-  type = string
-}
-
-variable "gcp_zone" {
-  description = "All GCP resources will be launched in this Zone."
+variable "subnetwork_name" {
+  description = "Name of the existing subnet used by E2B workloads."
   type        = string
 }
 
-variable "server_cluster_size" {
-  type = number
+variable "state_bucket_name" {
+  description = "Name of the Terraform remote state bucket."
+  type        = string
+  default     = "effectiveai-e2b-terraform-state"
+}
+
+variable "template_bucket_name" {
+  description = "Optional override for the template bucket name."
+  type        = string
+  default     = null
+  nullable    = true
+}
+
+variable "env_pipeline_bucket_name" {
+  description = "Optional override for the env pipeline bucket name."
+  type        = string
+  default     = null
+  nullable    = true
+}
+
+variable "setup_bucket_name" {
+  description = "Optional override for the instance setup bucket name."
+  type        = string
+  default     = null
+  nullable    = true
+}
+
+variable "core_repository_id" {
+  description = "Shared Artifact Registry repository containing core E2B images."
+  type        = string
+  default     = "e2b-core"
+}
+
+variable "node_disk_type" {
+  description = "Persistent disk type for node boot disks."
+  type        = string
+  default     = "pd-ssd"
 }
 
 variable "server_machine_type" {
-  type = string
+  type    = string
+  default = "e2-standard-2"
 }
 
-variable "api_cluster_size" {
-  type = number
+variable "server_target_size" {
+  type    = number
+  default = 3
+}
+
+variable "server_boot_disk_size_gb" {
+  type    = number
+  default = 20
 }
 
 variable "api_machine_type" {
-  type = string
+  type    = string
+  default = "e2-standard-2"
+}
+
+variable "api_target_size" {
+  type    = number
+  default = 1
+}
+
+variable "build_machine_type" {
+  type    = string
+  default = "n2-standard-4"
+}
+
+variable "build_min_cpu_platform" {
+  type    = string
+  default = "Intel Skylake"
+}
+
+variable "build_target_size" {
+  type    = number
+  default = 1
+}
+
+variable "build_boot_disk_size_gb" {
+  type    = number
+  default = 200
+}
+
+variable "build_cache_disk_type" {
+  type    = string
+  default = "pd-ssd"
+}
+
+variable "build_cache_disk_size_gb" {
+  type    = number
+  default = 375
+}
+
+variable "build_cache_disk_count" {
+  type    = number
+  default = 1
+}
+
+variable "build_hugepages_percentage" {
+  type    = number
+  default = 60
+}
+
+variable "client_machine_type" {
+  type    = string
+  default = "n2-standard-16"
+}
+
+variable "client_min_cpu_platform" {
+  type    = string
+  default = "Intel Skylake"
+}
+
+variable "client_target_size" {
+  type    = number
+  default = 4
+}
+
+variable "client_max_size" {
+  type    = number
+  default = 16
+}
+
+variable "client_boot_disk_size_gb" {
+  type    = number
+  default = 500
+}
+
+variable "client_cache_disk_type" {
+  type    = string
+  default = "pd-ssd"
+}
+
+variable "client_cache_disk_size_gb" {
+  type    = number
+  default = 375
+}
+
+variable "client_cache_disk_count" {
+  type    = number
+  default = 1
+}
+
+variable "client_hugepages_percentage" {
+  type    = number
+  default = 80
+}
+
+variable "client_cpu_target" {
+  type    = number
+  default = 0.7
+}
+
+variable "client_memory_target" {
+  type    = number
+  default = 95
+}
+
+variable "db_instance_name" {
+  type    = string
+  default = ""
+}
+
+variable "db_name" {
+  type    = string
+  default = "e2b"
+}
+
+variable "db_user" {
+  type    = string
+  default = "e2b"
+}
+
+variable "db_tier" {
+  type    = string
+  default = "db-custom-2-7680"
+}
+
+variable "db_availability_type" {
+  type    = string
+  default = "REGIONAL"
+}
+
+variable "db_disk_size_gb" {
+  type    = number
+  default = 100
+}
+
+variable "db_deletion_protection" {
+  type    = bool
+  default = true
+}
+
+variable "proxy_only_subnet_cidr" {
+  description = "CIDR range for the regional proxy-only subnet used by the internal HTTP load balancer."
+  type        = string
+  default     = "10.129.0.0/23"
+}
+
+variable "cluster_tag_name" {
+  type    = string
+  default = "e2b-node"
 }
 
 variable "api_node_pool" {
@@ -33,168 +254,14 @@ variable "api_node_pool" {
   default = "api"
 }
 
-variable "api_use_nat" {
-  type        = bool
-  description = "Whether API nodes should use NAT with dedicated external IPs."
-  default     = false
-}
-
-variable "api_nat_ips" {
-  type        = list(string)
-  description = "List of names for static IP addresses to use for NAT. If empty and api_use_nat is true, IPs will be created automatically."
-  default     = []
-}
-
-variable "api_nat_min_ports_per_vm" {
-  type        = number
-  description = "The default API NAT minimum ports per VM."
-  default     = 170
-}
-
-variable "api_server_count" {
-  type    = number
-  default = 1
-}
-
-variable "api_resources_cpu_count" {
-  type    = number
-  default = 2
-}
-
-variable "api_resources_memory_mb" {
-  type    = number
-  default = 2048
-}
-
 variable "build_node_pool" {
   type    = string
   default = "build"
 }
 
-variable "clickhouse_cluster_size" {
-  type = number
-}
-
-variable "clickhouse_machine_type" {
-  type = string
-}
-
-variable "clickhouse_database_name" {
-  description = "The name of the ClickHouse database to create."
-  type        = string
-  default     = "default"
-}
-
-variable "clickhouse_job_constraint_prefix" {
-  description = "The prefix to use for the job constraint of the instance in the metadata."
-  type        = string
-  default     = "clickhouse"
-}
-
-variable "clickhouse_node_pool" {
-  description = "The name of the Nomad pool."
-  type        = string
-  default     = "clickhouse"
-}
-
-variable "clickhouse_server_service_port" {
-  type = object({
-    name = string
-    port = number
-  })
-  default = {
-    name = "clickhouse"
-    port = 9000
-  }
-}
-
-variable "clickhouse_health_port" {
-  type = object({
-    name = string
-    port = number
-    path = string
-  })
-  default = {
-    name = "clickhouse-health"
-    port = 8123
-    path = "/health"
-  }
-}
-
-variable "client_proxy_count" {
-  type    = number
-  default = 1
-}
-
-variable "ingress_count" {
-  type    = number
-  default = 1
-}
-
-variable "additional_api_paths_handled_by_ingress" {
-  type        = list(string)
-  description = "Additional paths to forward to nomad's ingress"
-  default     = []
-}
-
-variable "additional_traefik_arguments" {
-  type    = list(string)
-  default = []
-}
-
-variable "client_proxy_resources_memory_mb" {
-  type    = number
-  default = 1024
-}
-
-variable "client_proxy_resources_cpu_count" {
-  type    = number
-  default = 1
-}
-
-variable "client_proxy_update_max_parallel" {
-  type        = number
-  description = "The number of client proxies to update in parallel during a rolling update."
-  default     = 1
-}
-
-variable "client_proxy_health_port" {
-  type = object({
-    name = string
-    port = number
-    path = string
-  })
-  default = {
-    name = "client-proxy"
-    port = 3001
-    path = "/health"
-  }
-}
-
-variable "client_proxy_port" {
-  type = object({
-    name = string
-    port = number
-  })
-  default = {
-    name = "session"
-    port = 3002
-  }
-}
-
-variable "loki_cluster_size" {
-  type    = number
-  default = 0
-}
-
-variable "loki_machine_type" {
+variable "orchestrator_node_pool" {
   type    = string
-  default = "e2-standard-4"
-}
-
-variable "loki_node_pool" {
-  type    = string
-  default = "loki"
+  default = "default"
 }
 
 variable "api_port" {
@@ -223,11 +290,6 @@ variable "ingress_port" {
   }
 }
 
-variable "dashboard_api_count" {
-  type    = number
-  default = 0
-}
-
 variable "docker_reverse_proxy_port" {
   type = object({
     name        = string
@@ -241,6 +303,35 @@ variable "docker_reverse_proxy_port" {
   }
 }
 
+variable "client_proxy_health_port" {
+  type = object({
+    name = string
+    port = number
+    path = string
+  })
+  default = {
+    name = "client-proxy"
+    port = 3001
+    path = "/health"
+  }
+}
+
+variable "client_proxy_port" {
+  type = object({
+    name = string
+    port = number
+  })
+  default = {
+    name = "session"
+    port = 3002
+  }
+}
+
+variable "nomad_http_port" {
+  type    = number
+  default = 4646
+}
+
 variable "redis_port" {
   type = object({
     name = string
@@ -252,19 +343,59 @@ variable "redis_port" {
   }
 }
 
-variable "nomad_port" {
+variable "ingress_count" {
   type    = number
-  default = 4646
+  default = 1
+}
+
+variable "additional_api_paths_handled_by_ingress" {
+  type    = list(string)
+  default = []
+}
+
+variable "additional_traefik_arguments" {
+  type    = list(string)
+  default = []
+}
+
+variable "api_server_count" {
+  type    = number
+  default = 1
+}
+
+variable "api_resources_cpu_count" {
+  type    = number
+  default = 2
+}
+
+variable "api_resources_memory_mb" {
+  type    = number
+  default = 2048
+}
+
+variable "client_proxy_count" {
+  type    = number
+  default = 1
+}
+
+variable "client_proxy_resources_cpu_count" {
+  type    = number
+  default = 1
+}
+
+variable "client_proxy_resources_memory_mb" {
+  type    = number
+  default = 1024
+}
+
+variable "client_proxy_update_max_parallel" {
+  type    = number
+  default = 1
 }
 
 variable "allow_sandbox_internet" {
   type    = bool
   default = true
-}
-
-variable "orchestrator_node_pool" {
-  type    = string
-  default = "default"
 }
 
 variable "orchestrator_port" {
@@ -279,7 +410,7 @@ variable "orchestrator_proxy_port" {
 
 variable "template_manager_port" {
   type    = number
-  default = 5008 // we want to use the same port for both because of edge api
+  default = 5008
 }
 
 variable "envd_timeout" {
@@ -287,327 +418,9 @@ variable "envd_timeout" {
   default = "40s"
 }
 
-variable "environment" {
-  type    = string
-  default = "prod"
-}
-
-variable "otel_collector_resources_memory_mb" {
-  type    = number
-  default = 1024
-}
-
-variable "otel_collector_resources_cpu_count" {
-  type    = number
-  default = 0.5
-}
-
-variable "clickhouse_resources_memory_mb" {
-  type    = number
-  default = 8192
-}
-
-variable "clickhouse_resources_cpu_count" {
-  type    = number
-  default = 4
-}
-
-variable "domain_name" {
-  type        = string
-  description = "The domain name where e2b will run"
-}
-
-variable "prefix" {
-  type        = string
-  description = "The prefix to use for all resources in this module"
-  default     = "e2b-"
-}
-
-variable "bucket_prefix" {
-  type = string
-}
-
-variable "labels" {
-  description = "The labels to attach to resources created by this module"
-  type        = map(string)
-  default = {
-    "app"       = "e2b"
-    "terraform" = "true"
-  }
-}
-
-variable "loki_resources_memory_mb" {
-  type    = number
-  default = 2048
-}
-
-variable "loki_resources_cpu_count" {
-  type    = number
-  default = 1
-}
-
-variable "loki_service_port" {
-  type = object({
-    name = string
-    port = number
-  })
-  default = {
-    name = "loki"
-    port = 3100
-  }
-}
-
-variable "template_bucket_location" {
-  type        = string
-  description = "The location of the FC template bucket"
-}
-
-variable "template_bucket_name" {
-  type        = string
-  description = "The name of the FC template bucket"
-  default     = ""
-}
-
-variable "redis_managed" {
-  default = false
-  type    = bool
-}
-
-variable "redis_shard_count" {
-  type    = number
-  default = 1
-}
-
-variable "filestore_cache_enabled" {
-  type        = bool
-  description = "Set to true to enable Filestore cache. Can be set via TF_VAR_use_filestore_cache or USE_FILESTORE_CACHE env var."
-  default     = false
-}
-
-variable "filestore_cache_tier" {
-  type        = string
-  description = "The tier of the Filestore cache"
-  default     = "BASIC_HDD"
-}
-
-variable "filestore_cache_capacity_gb" {
-  type        = number
-  description = "The capacity of the Filestore cache in GB"
-  default     = 0
-}
-
-variable "filestore_nfs_version" {
-  type        = string
-  description = "The NFS protocol version to use"
-  default     = ""
-}
-
-variable "filestore_cache_cleanup_disk_usage_target" {
-  type        = number
-  description = "The max disk usage target of the Filestore"
-  default     = 90
-}
-
-variable "filestore_cache_cleanup_dry_run" {
-  type    = bool
-  default = false
-}
-
-variable "filestore_cache_cleanup_files_per_loop" {
-  type    = number
-  default = 10000
-}
-
-variable "filestore_cache_cleanup_deletions_per_loop" {
-  type    = number
-  default = 900
-}
-
-variable "filestore_cache_cleanup_max_concurrent_stat" {
-  type        = number
-  description = "Number of concurrent stat goroutines"
-  default     = 16
-}
-
-variable "filestore_cache_cleanup_max_concurrent_scan" {
-  type        = number
-  description = "Number of concurrent scanner goroutines"
-  default     = 16
-}
-
-variable "filestore_cache_cleanup_max_concurrent_delete" {
-  type        = number
-  description = "Number of concurrent deleter goroutines"
-  default     = 4
-}
-
-variable "filestore_cache_cleanup_max_retries" {
-  type        = number
-  description = "Maximum number of continuous error or miss retries before giving up"
-  default     = 10000
-}
-
-variable "remote_repository_enabled" {
-  type        = bool
-  description = "Set to true to enable remote repository cache. Can be set via TF_VAR_remote_repository_enabled or REMOTE_REPOSITORY_ENABLED env var."
-  default     = false
-}
-
-variable "client_clusters_config" {
-  type = map(object({
-    cluster_size = number
-
-    machine = object({
-      type             = string
-      min_cpu_platform = string
-    })
-
-    autoscaler = optional(object({
-      size_max      = optional(number)
-      memory_target = optional(number)
-      cpu_target    = optional(number)
-    }))
-
-    boot_disk = object({
-      disk_type = string
-      size_gb   = number
-    })
-
-    cache_disks = object({
-      disk_type = string
-      size_gb   = number
-      count     = number
-    })
-
-    hugepages_percentage   = optional(number)
-    network_interface_type = optional(string)
-    node_labels            = optional(list(string), [])
-  }))
-
-  description = <<EOT
-Configuration for the client clusters.
-Format: [
-  {
-      "cluster_size": 1,  // Number of nodes (the actual number of nodes may be higher due to autoscaling)
-      "machine": {   // Machine type and CPU platform
-          "type": "n1-standard-8",
-          "min_cpu_platform": "Intel Skylake"
-      },
-      "autoscaler": {
-          "size_max": 1, // Maximum number of nodes to scale up to
-          "memory_target": 100,  // Target memory utilization percentage for autoscaling (0-100)
-          "cpu_target": 0.7  // Target CPU utilization percentage for autoscaling (0-1)
-      },
-      "boot_disk": {
-          "disk_type": "pd-ssd",  // Boot disk type
-          "size_gb": 100  // Boot disk size in GB
-      },
-      "cache_disks": {
-          "disk_type": "local-ssd",  // Cache disk type
-          "size_gb": 375,  // Cache disk size in GB
-          "count": 3  // Number of cache disks
-      },
-      "hugepages_percentage": 80
-  }
-]
-EOT
-}
-
-variable "build_clusters_config" {
-  type = map(object({
-    cluster_size = number
-
-    machine = object({
-      type             = string
-      min_cpu_platform = string
-    })
-
-    autoscaler = optional(object({
-      size_max      = optional(number)
-      memory_target = optional(number)
-      cpu_target    = optional(number)
-    }))
-
-    boot_disk = object({
-      disk_type = string
-      size_gb   = number
-    })
-
-    cache_disks = object({
-      disk_type = string
-      size_gb   = string
-      count     = number
-    })
-
-    hugepages_percentage   = optional(number)
-    network_interface_type = optional(string)
-    node_labels            = optional(list(string), [])
-  }))
-  description = <<EOT
-Configuration for the build clusters.
-Format:
-[
-  {
-    "cluster_size": 1,  // Number of nodes (the actual number of nodes may be higher due to autoscaling)
-    "machine": {   // Machine type and CPU platform
-        "type": "n1-standard-8",
-        "min_cpu_platform": "Intel Skylake"
-    },
-    "autoscaler": {
-        "size_max": 1, // Maximum number of nodes to scale up to
-        "memory_target": 100,  // Target memory utilization percentage for autoscaling (0-100)
-        "cpu_target": 0.7  // Target CPU utilization percentage for autoscaling (0-1)
-    },
-    "boot_disk": {
-        "disk_type": "pd-ssd",  // Boot disk type
-        "size_gb": 100  // Boot disk size in GB
-    },
-    "cache_disks": {
-        "disk_type": "local-ssd",  // Cache disk type
-        "size_gb": 375,  // Cache disk size in GB
-        "count": 3  // Number of cache disks
-    },
-    "hugepages_percentage": 60
-  }
-]
-EOT
-}
-
-# Boot disk type variables
-variable "api_boot_disk_type" {
-  description = "The GCE boot disk type for the API machines."
-  type        = string
-  default     = "pd-ssd"
-}
-
-variable "server_boot_disk_type" {
-  description = "The GCE boot disk type for the control server machines."
-  type        = string
-  default     = "pd-ssd"
-}
-
-variable "server_boot_disk_size_gb" {
-  description = "The GCE boot disk size (in GB) for the control server machines."
-  type        = number
-  default     = 20
-}
-
-variable "clickhouse_boot_disk_type" {
-  description = "The GCE boot disk type for the ClickHouse machines."
-  type        = string
-  default     = "pd-ssd"
-}
-
-variable "loki_boot_disk_type" {
-  description = "The GCE boot disk type for the Loki machines."
-  type        = string
-  default     = "pd-ssd"
-}
-
 variable "sandbox_storage_backend" {
-  description = "The sandbox storage backend to use. Valid values: 'memory', 'redis'."
-  type        = string
-  default     = ""
+  type    = string
+  default = "memory"
 }
 
 variable "db_max_open_connections" {
@@ -630,74 +443,9 @@ variable "auth_db_min_idle_connections" {
   default = 5
 }
 
-variable "loki_use_v13_schema_from" {
-  type        = string
-  description = "This should be a date soon after you deploy. Format = YYYY-MM-DD"
-  default     = ""
-
-  validation {
-    condition     = var.loki_use_v13_schema_from == "" || can(regex("\\d{4}-\\d{2}-\\d{2}", var.loki_use_v13_schema_from))
-    error_message = "must be YYYY-MM-DD"
-  }
-}
-
-variable "persistent_volume_types" {
-  description = "Persistence layer for volumes"
-
-  type = map(object({
-    allow_deletion = optional(bool)
-    tier           = string
-    location       = optional(string)
-    capacity_gb    = number
-    protocol       = optional(string)
-    nfs_version    = optional(string)
-    mount_options  = optional(list(string))
-    performance_config = optional(object({
-      max_iops = optional(number)
-    }))
-  }))
-
-  default = {}
-}
-
-variable "default_persistent_volume_type" {
-  type    = string
-  default = ""
-}
-
-variable "network_name" {
-  type    = string
-  default = "default"
-}
-
-variable "volume_token_issuer" {
-  type    = string
-  default = ""
-}
-
-variable "volume_token_valid_for" {
-  type    = string
-  default = ""
-}
-
-variable "volume_token_signature" {
-  type = object({
-    key    = string
-    name   = string
-    method = string
-  })
-  default = null
-}
-
 variable "gcs_grpc_connection_pool_size" {
-  description = "Number of gRPC connections in the GCS connection pool for storage-heavy services"
-  type        = number
-  default     = 0
-
-  validation {
-    condition     = floor(var.gcs_grpc_connection_pool_size) == var.gcs_grpc_connection_pool_size && var.gcs_grpc_connection_pool_size >= 0
-    error_message = "gcs_grpc_connection_pool_size must be a positive integer or 0 for using default specified in code."
-  }
+  type    = number
+  default = 0
 }
 
 variable "orchestrator_env_vars" {

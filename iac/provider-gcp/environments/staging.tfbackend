@@ -1,0 +1,3 @@
+bucket = "effectiveai-e2b-terraform-state"
+prefix = "terraform/staging"
+
