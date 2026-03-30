@@ -241,7 +241,7 @@ resource "google_compute_firewall" "proxy_subnet_to_backends" {
 }
 
 resource "google_compute_firewall" "internal_remote_connection_firewall_ingress" {
-  name    = "${var.prefix}${var.cluster_tag_name}-internal-remote-connection-firewall-ingress"
+  name    = "${var.prefix}${var.cluster_tag_name}-internal-remote-fw-ingress"
   network = data.google_compute_network.main.name
 
   allow {
@@ -256,7 +256,7 @@ resource "google_compute_firewall" "internal_remote_connection_firewall_ingress"
 }
 
 resource "google_compute_firewall" "remote_connection_firewall_ingress" {
-  name    = "${var.prefix}${var.cluster_tag_name}-remote-connection-firewall-ingress"
+  name    = "${var.prefix}${var.cluster_tag_name}-remote-fw-ingress"
   network = data.google_compute_network.main.name
 
   deny {
@@ -271,7 +271,7 @@ resource "google_compute_firewall" "remote_connection_firewall_ingress" {
 }
 
 resource "google_compute_firewall" "orch_firewall_egress" {
-  name    = "${var.prefix}${var.cluster_tag_name}-firewall-egress"
+  name    = "${var.prefix}${var.cluster_tag_name}-fw-egress"
   network = data.google_compute_network.main.name
 
   allow { protocol = "all" }

@@ -1,14 +1,15 @@
 resource "google_service_account" "docker_registry_service_account" {
-  account_id   = "${var.prefix}docker-reverse-proxy-sa"
+  account_id   = "e2b-${var.environment}-docker-proxy-sa"
   display_name = "Docker Reverse Proxy Service Account"
 }
 
-resource "google_artifact_registry_repository_iam_member" "orchestration_repository_member" {
-  repository = google_artifact_registry_repository.custom_environments_repository.name
-  role       = "roles/artifactregistry.writer"
-  member     = "serviceAccount:${google_service_account.docker_registry_service_account.email}"
+# Use project-level IAM instead of repo-level IAM to avoid needing
+# artifactregistry.repositories.setIamPolicy permission.
+resource "google_project_iam_member" "docker_proxy_ar_writer" {
+  project = var.project_id
+  role    = "roles/artifactregistry.writer"
+  member  = "serviceAccount:${google_service_account.docker_registry_service_account.email}"
 }
 
-resource "google_service_account_key" "google_service_key" {
-  service_account_id = google_service_account.docker_registry_service_account.id
-}
+# SA key removed — blocked by org policy (iam.disableServiceAccountKeyCreation).
+# The docker-reverse-proxy Nomad job uses WIF via the node's attached SA, not a key.

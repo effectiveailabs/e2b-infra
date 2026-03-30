@@ -1,5 +1,5 @@
 data "google_compute_global_address" "private_ip_range" {
-  name    = "private-ip-address"
+  name    = "postgres-private-ip-dev"
   project = var.project_id
 }
 
@@ -32,6 +32,7 @@ resource "google_sql_database_instance" "e2b" {
 
   settings {
     tier              = var.db_tier
+    edition           = "ENTERPRISE"
     availability_type = var.db_availability_type
     disk_type         = "PD_SSD"
     disk_size         = var.db_disk_size_gb
