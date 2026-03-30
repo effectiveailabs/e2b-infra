@@ -104,7 +104,7 @@ resource "google_compute_region_backend_service" "default" {
 
   name                  = "${var.prefix}backend-${replace(each.key, "_", "-")}"
   region                = var.gcp_region
-  port_name             = each.value.port_name
+  port_name             = lookup(each.value, "port_name", "http")
   protocol              = "HTTP"
   load_balancing_scheme = "INTERNAL_MANAGED"
   health_checks         = [google_compute_region_health_check.default[each.key].id]

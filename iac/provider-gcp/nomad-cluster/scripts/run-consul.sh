@@ -39,7 +39,7 @@ function print_usage {
   echo
   echo "Usage: run-consul [OPTIONS]"
   echo
-  echho "This script is used to configure and run Consul on a Google Compute Instance."
+  echo "This script is used to configure and run Consul on a Google Compute Instance."
   echo
   echo "Options:"
   echo
@@ -179,6 +179,7 @@ function generate_consul_config {
 
   instance_ip_address=$(get_instance_ip_address)
   instance_name=$(get_instance_name)
+  instance_id="$instance_name"
   instance_region=$(get_instance_region)
   project_id=$(get_instance_project_id)
 
@@ -572,7 +573,6 @@ function run {
       ;;
     --autopilot-disable-upgrade-migration)
       disable_upgrade_migration="true"
-      shift
       ;;
     --autopilot-upgrade-version-tag)
       assert_not_empty "$key" "$2"
