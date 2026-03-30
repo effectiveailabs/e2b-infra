@@ -19,9 +19,5 @@ resource "nomad_job" "client_proxy" {
 
     image            = var.image
     api_grpc_address = trimspace(var.api_grpc_address)
-
-    otel_collector_grpc_endpoint = var.otel_collector_grpc_endpoint
-    logs_collector_address       = var.logs_collector_address
-    launch_darkly_api_key        = trimspace(var.launch_darkly_api_key)
   })
 }

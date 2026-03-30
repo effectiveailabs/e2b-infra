@@ -1,10 +1,5 @@
-variable "update_stanza" {
-  type = bool
-}
-
-variable "client_proxy_count" {
-  type = number
-}
+variable "update_stanza" { type = bool }
+variable "client_proxy_count" { type = number }
 
 variable "client_proxy_cpu_count" {
   type    = number
@@ -21,13 +16,8 @@ variable "client_proxy_update_max_parallel" {
   default = 1
 }
 
-variable "node_pool" {
-  type = string
-}
-
-variable "environment" {
-  type = string
-}
+variable "node_pool" { type = string }
+variable "environment" { type = string }
 
 variable "proxy_port" {
   type    = number
@@ -59,25 +49,9 @@ variable "redis_pool_size" {
   default = 40
 }
 
-variable "image" {
-  type = string
-}
+variable "image" { type = string }
 
 variable "api_grpc_address" {
   type    = string
   default = ""
-}
-
-variable "otel_collector_grpc_endpoint" {
-  type = string
-}
-
-variable "logs_collector_address" {
-  type = string
-}
-
-variable "launch_darkly_api_key" {
-  type      = string
-  default   = ""
-  sensitive = true
 }

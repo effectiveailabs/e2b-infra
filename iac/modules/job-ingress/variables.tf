@@ -18,26 +18,16 @@ variable "consul_endpoint" {
   default = "http://localhost:8500"
 }
 
-variable "ingress_proxy_port" {
-  type = number
-}
+variable "ingress_proxy_port" { type = number }
 
 variable "ingress_control_port" {
   type    = number
   default = 8900
 }
 
-variable "node_pool" {
-  type = string
-}
-
-variable "update_stanza" {
-  type = bool
-}
-
-variable "ingress_count" {
-  type = number
-}
+variable "node_pool" { type = string }
+variable "update_stanza" { type = bool }
+variable "ingress_count" { type = number }
 
 variable "ingress_cpu_count" {
   type    = number
@@ -49,11 +39,4 @@ variable "ingress_memory_mb" {
   default = 512
 }
 
-variable "otel_collector_grpc_endpoint" {
-  type        = string
-  description = "OpenTelemetry collector gRPC endpoint (e.g., localhost:4317)"
-}
-
-variable "additional_traefik_arguments" {
-  type = list(string)
-}
+variable "additional_traefik_arguments" { type = list(string) }

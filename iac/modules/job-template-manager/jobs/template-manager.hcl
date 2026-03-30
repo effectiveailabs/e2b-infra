@@ -1,25 +1,21 @@
 job "template-manager" {
   type = "service"
-  node_pool  = "${node_pool}"
+  node_pool = "${node_pool}"
   priority = 75
 
   group "template-manager" {
-    # Count is fetched from current Nomad state to preserve autoscaler-managed value
     count = ${current_count}
 
-    # Ensure one allocation per node (like a system job)
     constraint {
       operator = "distinct_hosts"
       value    = "true"
     }
 
 %{ if update_stanza }
-    # Scaling policy to match node count in the pool
-    # Uses the nomad-nodepool APM plugin
     scaling {
       enabled = true
       min     = 2
-      max     = 10000  # Effectively unlimited
+      max     = 10000
 
       policy {
         evaluation_interval = "10s"
@@ -28,38 +24,29 @@ job "template-manager" {
         check "match_node_count" {
           source = "nomad-nodepool-apm"
           query  = "${node_pool}"
-
           strategy "pass-through" {}
         }
       }
     }
 
-    # Rolling update configuration for service jobs
-    # https://developer.hashicorp.com/nomad/docs/job-specification/update
     update {
       max_parallel      = 1
       min_healthy_time  = "10s"
       healthy_deadline  = "2m"
-      progress_deadline = "80m"  # Must be > healthy_deadline and > kill_timeout
+      progress_deadline = "80m"
       auto_revert       = false
     }
 %{ endif }
 
-    // Try to restart the task indefinitely
-    // Tries to restart every 5 seconds
     restart {
-      interval         = "5s"
-      attempts         = 1
-      delay            = "5s"
-      mode             = "delay"
+      interval = "5s"
+      attempts = 1
+      delay    = "5s"
+      mode     = "delay"
     }
 
-    // For future as we can remove static and allow multiple instances on one machine if needed.
-    // Also network allocation is used by Nomad service discovery on API and edge API to find jobs and register them.
     network {
-      port "template-manager" {
-        static = "${port}"
-      }
+      port "template-manager" { static = "${port}" }
     }
 
     service {
@@ -68,11 +55,11 @@ job "template-manager" {
       provider = "nomad"
 
       check {
-        type         = "http"
-        path         = "/health"
-        name         = "health"
-        interval     = "20s"
-        timeout      = "5s"
+        type     = "http"
+        path     = "/health"
+        name     = "health"
+        interval = "20s"
+        timeout  = "5s"
       }
     }
 
@@ -80,58 +67,47 @@ job "template-manager" {
       driver = "raw_exec"
 
 %{ if update_stanza }
-      # https://developer.hashicorp.com/nomad/docs/configuration/client#max_kill_timeout
-      kill_timeout      = "70m"
+      kill_timeout = "70m"
 %{ else }
-      kill_timeout      = "1m"
+      kill_timeout = "1m"
 %{ endif }
-      kill_signal  = "SIGTERM"
+      kill_signal = "SIGTERM"
 
       resources {
-        memory     = 1024
-        cpu        = 256
+        memory = 1024
+        cpu    = 256
       }
 
       env {
         NODE_ID     = "$${node.unique.name}"
         NODE_LABELS = "$${meta.node_labels}"
-
-        CONSUL_TOKEN                  = "${consul_acl_token}"
+        CONSUL_TOKEN = "${consul_acl_token}"
 %{ if provider == "gcp" }
         GOOGLE_SERVICE_ACCOUNT_BASE64 = "${provider_gcp_config.service_account_key}"
-        GCP_PROJECT_ID                = "${provider_gcp_config.project_id}"
-        GCP_REGION                    = "${provider_gcp_config.region}"
-        GCP_DOCKER_REPOSITORY_NAME    = "${provider_gcp_config.docker_registry}"
-
+        GCP_PROJECT_ID             = "${provider_gcp_config.project_id}"
+        GCP_REGION                 = "${provider_gcp_config.region}"
+        GCP_DOCKER_REPOSITORY_NAME = "${provider_gcp_config.docker_registry}"
         %{ if provider_gcp_config.gcs_grpc_connection_pool_size != 0 }
         GCS_GRPC_CONNECTION_POOL_SIZE = "${provider_gcp_config.gcs_grpc_connection_pool_size}"
         %{ endif }
 %{ endif }
 %{ if provider == "aws" }
-        ARTIFACTS_REGISTRY_PROVIDER   = "AWS_ECR"
-        STORAGE_PROVIDER              = "AWSBucket"
-        AWS_REGION                    = "${provider_aws_config.region}"
-        AWS_DOCKER_REPOSITORY_NAME    = "${provider_aws_config.docker_repository_name}"
+        ARTIFACTS_REGISTRY_PROVIDER = "AWS_ECR"
+        STORAGE_PROVIDER            = "AWSBucket"
+        AWS_REGION                  = "${provider_aws_config.region}"
+        AWS_DOCKER_REPOSITORY_NAME  = "${provider_aws_config.docker_repository_name}"
 %{ endif }
-        API_SECRET                    = "${api_secret}"
-        ENVIRONMENT                   = "${environment}"
-        DOMAIN_NAME                   = "${domain_name}"
-        TEMPLATE_BUCKET_NAME          = "${template_bucket_name}"
-        BUILD_CACHE_BUCKET_NAME       = "${build_cache_bucket_name}"
-        OTEL_COLLECTOR_GRPC_ENDPOINT     = "${otel_collector_grpc_endpoint}"
-        LOGS_COLLECTOR_ADDRESS           = "${logs_collector_address}"
-        ORCHESTRATOR_SERVICES            = "${orchestrator_services}"
-        REDIS_POOL_SIZE                  = "${redis_pool_size}"
-        SHARED_CHUNK_CACHE_PATH       = "${shared_chunk_cache_path}"
-        CLICKHOUSE_CONNECTION_STRING  = "${clickhouse_connection_string}"
-        DOCKERHUB_REMOTE_REPOSITORY_URL  = "${dockerhub_remote_repository_url}"
-        GRPC_PORT                     = "${port}"
-        GIN_MODE                      = "release"
+        API_SECRET              = "${api_secret}"
+        ENVIRONMENT             = "${environment}"
+        DOMAIN_NAME             = "${domain_name}"
+        TEMPLATE_BUCKET_NAME    = "${template_bucket_name}"
+        BUILD_CACHE_BUCKET_NAME = "${build_cache_bucket_name}"
+        ORCHESTRATOR_SERVICES   = "${orchestrator_services}"
+        REDIS_POOL_SIZE         = "${redis_pool_size}"
+        GRPC_PORT               = "${port}"
+        GIN_MODE                = "release"
 %{ if !update_stanza }
-        FORCE_STOP                    = "true"
-%{ endif }
-%{ if launch_darkly_api_key != "" }
-        LAUNCH_DARKLY_API_KEY         = "${launch_darkly_api_key}"
+        FORCE_STOP              = "true"
 %{ endif }
       }
 
@@ -141,10 +117,10 @@ job "template-manager" {
       }
 
       artifact {
-        source      = "${artifact_source}"
+        source = "${artifact_source}"
 %{ if template_manager_checksum != "" }
         options {
-            checksum    = "md5:${template_manager_checksum}"
+          checksum = "md5:${template_manager_checksum}"
         }
 %{ endif }
       }
