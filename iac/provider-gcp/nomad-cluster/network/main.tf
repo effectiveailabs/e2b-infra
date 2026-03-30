@@ -111,7 +111,10 @@ resource "google_compute_region_backend_service" "default" {
   timeout_sec           = each.key == "session" ? 86400 : 80
 
   backend {
-    group = each.value.group
+    group           = each.value.group
+    balancing_mode  = "UTILIZATION"
+    max_utilization = 0.8
+    capacity_scaler = 1.0
   }
 
   log_config {

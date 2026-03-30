@@ -10,9 +10,20 @@ variable "network_name" {
   type = string
 }
 
+variable "subnetwork_name" {
+  type    = string
+  default = ""
+}
+
 variable "prefix" {
   type    = string
   default = "e2b-"
+}
+
+variable "access_token" {
+  type      = string
+  default   = ""
+  sensitive = true
 }
 
 variable "consul_version" {
