@@ -95,4 +95,3 @@ resource "google_secret_manager_secret_version" "postgres_connection_string" {
     google_sql_database.e2b.name,
   )
 }
-

@@ -9,4 +9,3 @@ output "internal_lb_ip" {
 output "sandbox_domain" {
   value = trimsuffix(google_dns_managed_zone.sandbox_internal.dns_name, ".")
 }
-

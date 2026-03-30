@@ -12,4 +12,3 @@ A single root apply still provisions the full stack:
 - Nomad jobs for the E2B runtime
 
 ## Architecture
-

@@ -8,7 +8,7 @@ variable "environment" {
 }
 
 variable "cluster_tag_name" {
-  description = "The tag name the Compute Instances will look for to automatically discover each other and form a cluster. TIP: If running more than one server Server cluster, each cluster should have its own unique tag name."
+  description = "The tag name Compute Instances use to discover the cluster."
   type        = string
   default     = "orch"
 }
@@ -41,14 +41,6 @@ variable "api_cluster_size" {
 }
 
 variable "api_machine_type" {
-  type = string
-}
-
-variable "loki_cluster_size" {
-  type = number
-}
-
-variable "loki_machine_type" {
   type = string
 }
 
@@ -167,206 +159,28 @@ variable "build_clusters_config" {
   }))
 }
 
-variable "gcp_project_id" {
-  type = string
-}
-
-variable "gcp_region" {
-  type = string
-}
-
-variable "gcp_zone" {
-  type = string
-}
-
-variable "network_name" {
-  type = string
-}
-
-variable "google_service_account_email" {
-  type = string
-}
-
-variable "google_service_account_key" {
-  type = string
-}
-
-variable "docker_contexts_bucket_name" {
-  type = string
-}
-
-variable "domain_name" {
-  type        = string
-  description = "The domain name where e2b will run"
-}
-
-variable "additional_domains" {
-  type        = list(string)
-  description = "Additional domains which can be used to access the e2b cluster"
-}
-
-variable "cluster_setup_bucket_name" {
-  type        = string
-  description = "The name of the bucket to store the setup files"
-}
-
-variable "fc_env_pipeline_bucket_name" {
-  type        = string
-  description = "The name of the bucket to store the files for firecracker environment pipeline"
-}
-
-variable "fc_kernels_bucket_name" {
-  type        = string
-  description = "The name of the bucket to store the kernels for firecracker"
-}
-
-variable "fc_versions_bucket_name" {
-  type = string
-}
-
-variable "consul_acl_token_secret" {
-  type = string
-}
-
-variable "nomad_acl_token_secret" {
-  type = string
-}
-
-variable "nomad_port" {
-  type = number
-}
-
-variable "labels" {
-  description = "The labels to attach to resources created by this module"
-  type        = map(string)
-}
-
-variable "clickhouse_cluster_name" {
-  type    = string
-  default = "clickhouse"
-}
-
-variable "clickhouse_cluster_size" {
-  description = "The number of ClickHouse nodes in the cluster."
-  type        = number
-}
-
-variable "clickhouse_machine_type" {
-  description = "The machine type of the Compute Instance to run for each node in the cluster."
-  type        = string
-}
-
-
-variable "clickhouse_job_constraint_prefix" {
-  description = "The prefix to use for the job constraint of the instance in the metadata."
-  type        = string
-}
-
-variable "clickhouse_health_port" {
-  type = object({
-    name = string
-    port = number
-    path = string
-  })
-}
-
-variable "filestore_cache_enabled" {
-  type    = bool
-  default = false
-}
-
-variable "cloudflare_api_token_secret_name" {
-  type = string
-}
-
-variable "filestore_cache_tier" {
-  type    = string
-  default = "BASIC_HDD"
-}
-
-variable "filestore_cache_capacity_gb" {
-  type    = number
-  default = 0
-}
-
-variable "filestore_nfs_version" {
-  type = string
-}
-
-variable "api_node_pool" {
-  description = "The name of the Nomad pool."
-  type        = string
-}
-
-variable "build_node_pool" {
-  description = "The name of the Nomad pool."
-  type        = string
-}
-
-variable "clickhouse_node_pool" {
-  description = "The name of the Nomad pool."
-  type        = string
-}
-
-variable "loki_node_pool" {
-  description = "The name of the Nomad pool."
-  type        = string
-}
-
-variable "orchestrator_node_pool" {
-  description = "The name of the Nomad pool."
-  type        = string
-}
-
-variable "api_use_nat" {
-  description = "Whether API nodes should use NAT with dedicated external IPs."
-  type        = bool
-}
-
-variable "api_nat_ips" {
-  type        = list(string)
-  description = "List of names for static IP addresses to use for NAT. If empty and api_use_nat is true, IPs will be created automatically."
-}
-
-variable "api_nat_min_ports_per_vm" {
-  type = number
-}
-
-# Boot disk type variables
-variable "api_boot_disk_type" {
-  description = "The GCE boot disk type for the API machines."
-  type        = string
-}
-
-variable "server_boot_disk_type" {
-  description = "The GCE boot disk type for the control server machines."
-  type        = string
-}
-
-variable "server_boot_disk_size_gb" {
-  description = "The GCE boot disk size in GB for the control server machines."
-  type        = number
-}
-
-variable "clickhouse_boot_disk_type" {
-  description = "The GCE boot disk type for the ClickHouse machines."
-  type        = string
-}
-
-variable "loki_boot_disk_type" {
-  description = "The GCE boot disk type for the Loki machines."
-  type        = string
-}
-
-variable "persistent_volume_types" {
-  description = "Persistent volume mount information"
-  type = map(object({
-    local_mount_path = string
-    nfs_location     = string
-    nfs_mount_opts   = string
-  }))
-}
-
-variable "additional_api_paths_handled_by_ingress" {
-  type = list(string)
-}
+variable "gcp_project_id" { type = string }
+variable "gcp_region" { type = string }
+variable "gcp_zone" { type = string }
+variable "network_name" { type = string }
+variable "subnetwork_name" { type = string }
+variable "google_service_account_email" { type = string }
+variable "docker_contexts_bucket_name" { type = string }
+variable "domain_name" { type = string }
+variable "additional_domains" { type = list(string) }
+variable "cluster_setup_bucket_name" { type = string }
+variable "fc_env_pipeline_bucket_name" { type = string }
+variable "fc_kernels_bucket_name" { type = string }
+variable "fc_versions_bucket_name" { type = string }
+variable "consul_acl_token_secret" { type = string }
+variable "nomad_acl_token_secret" { type = string }
+variable "nomad_port" { type = number }
+variable "labels" { type = map(string) }
+variable "proxy_only_subnet_cidr" { type = string }
+variable "api_node_pool" { type = string }
+variable "build_node_pool" { type = string }
+variable "orchestrator_node_pool" { type = string }
+variable "api_boot_disk_type" { type = string }
+variable "server_boot_disk_type" { type = string }
+variable "server_boot_disk_size_gb" { type = number }
+variable "additional_api_paths_handled_by_ingress" { type = list(string) }

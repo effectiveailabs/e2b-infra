@@ -279,4 +279,3 @@ resource "google_compute_firewall" "orch_firewall_egress" {
   direction   = "EGRESS"
   target_tags = [var.cluster_tag_name]
 }
-

@@ -35,4 +35,3 @@ ensure_backend() {
     terraform init -reconfigure "${BACKEND_ARGS[@]}"
   fi
 }
-

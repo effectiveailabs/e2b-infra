@@ -15,4 +15,3 @@ if [[ -f tfplan ]]; then
 else
   terraform apply -lock-timeout=5m "${REMAINING_ARGS[@]}"
 fi
-

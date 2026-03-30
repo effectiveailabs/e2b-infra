@@ -8,4 +8,3 @@ data "google_compute_subnetwork" "main" {
   region  = var.region
   project = var.project_id
 }
-

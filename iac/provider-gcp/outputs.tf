@@ -70,4 +70,3 @@ output "sandbox_domain" {
 output "nomad_address" {
   value = "http://nomad.${module.cluster.sandbox_domain}"
 }
-
