@@ -282,3 +282,17 @@ resource "google_compute_firewall" "orch_firewall_egress" {
   direction   = "EGRESS"
   target_tags = [var.cluster_tag_name]
 }
+
+# Allow all internal traffic between cluster nodes (Consul gossip, Nomad RPC, etc.)
+# The default VPC has default-allow-internal, but custom VPCs like 'dev' do not.
+resource "google_compute_firewall" "cluster_internal_allow_all" {
+  name    = "${var.prefix}${var.cluster_tag_name}-internal-allow-all"
+  network = data.google_compute_network.main.name
+
+  allow { protocol = "tcp" }
+  allow { protocol = "udp" }
+
+  direction   = "INGRESS"
+  source_tags = [var.cluster_tag_name]
+  target_tags = [var.cluster_tag_name]
+}
