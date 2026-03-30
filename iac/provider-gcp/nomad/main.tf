@@ -21,7 +21,7 @@ provider "nomad" {
 }
 
 module "ingress" {
-  source = "../modules/job-ingress"
+  source = "../../modules/job-ingress"
 
   ingress_count                = var.ingress_count
   ingress_proxy_port           = var.ingress_port.port
@@ -35,7 +35,7 @@ module "ingress" {
 }
 
 module "api" {
-  source = "../modules/job-api"
+  source = "../../modules/job-api"
 
   update_stanza      = var.api_machine_count > 1
   node_pool          = var.api_node_pool
@@ -69,7 +69,7 @@ module "api" {
 }
 
 module "redis" {
-  source = "../modules/job-redis"
+  source = "../../modules/job-redis"
 
   node_pool   = var.api_node_pool
   port_number = var.redis_port.port
@@ -93,7 +93,7 @@ resource "nomad_job" "docker_reverse_proxy" {
 }
 
 module "client_proxy" {
-  source = "../modules/job-client-proxy"
+  source = "../../modules/job-client-proxy"
 
   update_stanza                    = var.api_machine_count > 1
   client_proxy_count               = var.client_proxy_count
@@ -132,7 +132,7 @@ locals {
 }
 
 module "orchestrator" {
-  source = "../modules/job-orchestrator"
+  source = "../../modules/job-orchestrator"
 
   provider_name = "gcp"
   provider_gcp_config = {
@@ -192,7 +192,7 @@ data "external" "nomad_nodepool_apm_checksum" {
 }
 
 module "template_manager" {
-  source = "../modules/job-template-manager"
+  source = "../../modules/job-template-manager"
 
   provider_name = "gcp"
   provider_gcp_config = {
@@ -221,7 +221,7 @@ module "template_manager" {
 }
 
 module "template_manager_autoscaler" {
-  source = "../modules/job-template-manager-autoscaler"
+  source = "../../modules/job-template-manager-autoscaler"
   count  = var.template_manages_clusters_size_gt_1 ? 1 : 0
 
   node_pool                  = var.api_node_pool
