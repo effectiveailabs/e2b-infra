@@ -16,11 +16,6 @@ terraform {
       version = "6.50.0"
     }
 
-    cloudflare = {
-      source  = "cloudflare/cloudflare"
-      version = "4.52.5"
-    }
-
     nomad = {
       source  = "hashicorp/nomad"
       version = "2.1.0"
@@ -101,6 +96,12 @@ module "init" {
 
   gcp_project_id = var.gcp_project_id
   gcp_region     = var.gcp_region
+  # EFFECTIVEAI: seed the existing secret with the externally managed
+  # connection string so `make init/plan/apply` can work without Supabase.
+  postgres_connection_string = var.postgres_connection_string
+  # EFFECTIVEAI: reuse the pre-created Artifact Registry repo instead of
+  # creating a new `${prefix}core` repository.
+  core_repository_name = var.core_repository_name
 
   template_bucket_location = var.template_bucket_location
   template_bucket_name     = var.template_bucket_name
@@ -111,12 +112,12 @@ module "cluster" {
 
   environment = var.environment
 
-  cloudflare_api_token_secret_name = module.init.cloudflare_api_token_secret_name
-  gcp_project_id                   = var.gcp_project_id
-  gcp_region                       = var.gcp_region
-  gcp_zone                         = var.gcp_zone
-  google_service_account_key       = module.init.google_service_account_key
-  network_name                     = var.network_name
+  gcp_project_id             = var.gcp_project_id
+  gcp_region                 = var.gcp_region
+  gcp_zone                   = var.gcp_zone
+  google_service_account_key = module.init.google_service_account_key
+  network_name               = var.network_name
+  network_subnet_name        = var.network_subnet_name
 
   build_clusters_config  = var.build_clusters_config
   client_clusters_config = var.client_clusters_config

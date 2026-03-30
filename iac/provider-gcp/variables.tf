@@ -12,6 +12,12 @@ variable "gcp_zone" {
   type        = string
 }
 
+variable "postgres_connection_string" {
+  description = "External Postgres connection string used to seed Secret Manager."
+  type        = string
+  sensitive   = true
+}
+
 variable "server_cluster_size" {
   type = number
 }
@@ -668,6 +674,19 @@ variable "default_persistent_volume_type" {
 variable "network_name" {
   type    = string
   default = "default"
+}
+
+
+variable "network_subnet_name" {
+  description = "Existing subnet to attach compute instances and internal load balancers to."
+  type        = string
+  default     = "default"
+}
+
+variable "core_repository_name" {
+  description = "Existing Artifact Registry repository that stores the core E2B images."
+  type        = string
+  default     = "e2b-core"
 }
 
 variable "volume_token_issuer" {

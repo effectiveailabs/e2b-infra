@@ -73,15 +73,18 @@ Check if you can use config for terraform state management
    - [Filestore API](https://console.cloud.google.com/apis/library/file.googleapis.com)
 6. Run `make build-and-upload`
 7. Run `make copy-public-builds`. This will copy kernel and rootfs builds for Firecracker to your bucket. You can [build your own](#building-firecracker-and-uffd-from-source) kernel and Firecracker roots.
-8. For following secrets terraform creates only an empty secret containers in GCP Secrets Manager. You need to add a **secret version** with the actual value. Go to [GCP Secrets Manager](https://console.cloud.google.com/security/secret-manager), click on the secret, then click "New Version" to add the value for the following secrets:
-  - e2b-cloudflare-api-token
-      > Get Cloudflare API Token: go to the [Cloudflare dashboard](https://dash.cloudflare.com/) -> Manage Account -> Account API Tokens -> Create Token -> Edit Zone DNS -> in "Zone Resources" select your domain and generate the token
+8. Terraform writes the primary PostgreSQL connection string from your `.env.*`
+   file into GCP Secret Manager. You still need to add **secret versions**
+   manually for optional integrations by going to
+   [GCP Secrets Manager](https://console.cloud.google.com/security/secret-manager),
+   clicking the secret, and adding a "New Version" for:
   - e2b-postgres-connection-string (**required**)
   - e2b-supabase-jwt-secrets (optional / required to self-host the [E2B dashboard](https://github.com/e2b-dev/dashboard))
       > Get Supabase JWT Secret: go to the [Supabase dashboard](https://supabase.com/dashboard) -> Select your Project -> Project Settings -> Data API -> JWT Settings
   - e2b-posthog-api-key (optional, for monitoring)
 9. Run `make plan-without-jobs` and then `make apply`
-10. Run `make plan` and then `make apply`. Note: This will work after the TLS certificates was issued. It can take some time; you can check the status in the Google Cloud Console. Database migrations run automatically via the API's db-migrator task.
+10. Run `make plan` and then `make apply`. Database migrations run
+    automatically via the API's db-migrator task.
 11. Setup data in the cluster by running `make prep-cluster` in `packages/shared` to create an initial user, team, and build a base template.
   - You can also run `make seed-db` in `packages/db` to create more users and teams.
 

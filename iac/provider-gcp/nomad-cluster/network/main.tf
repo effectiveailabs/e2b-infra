@@ -1,41 +1,28 @@
-terraform {
-  required_providers {
-    cloudflare = {
-      source  = "cloudflare/cloudflare"
-      version = "4.52.5"
-    }
-  }
+data "google_compute_network" "existing" {
+  # EFFECTIVEAI: use the shared VPC instead of provisioning a fork-owned one.
+  name = var.network_name
 }
 
-data "google_secret_manager_secret_version" "cloudflare_api_token" {
-  secret = var.cloudflare_api_token_secret_name
+data "google_compute_subnetwork" "existing" {
+  # EFFECTIVEAI: pin all resources to the pre-existing workload subnet.
+  name   = var.network_subnet_name
+  region = var.gcp_region
 }
 
-provider "cloudflare" {
-  api_token = data.google_secret_manager_secret_version.cloudflare_api_token.secret_data
+resource "google_compute_subnetwork" "proxy_only" {
+  # EFFECTIVEAI: internal managed L7 load balancers require a proxy-only subnet.
+  name          = "${var.prefix}proxy-only"
+  ip_cidr_range = "10.20.0.0/23"
+  purpose       = "REGIONAL_MANAGED_PROXY"
+  role          = "ACTIVE"
+  region        = var.gcp_region
+  network       = data.google_compute_network.existing.id
 }
 
 locals {
-  domain_map = { for d in var.additional_domains : replace(d, ".", "-") => d }
-
-  // All domains (primary + additional)
-  domains = toset(concat(var.additional_domains, [var.domain_name]))
-
-  // Extract root domain (Cloudflare zone) and prefix from each domain.
-  // e.g. "sub.example.com" -> root_domain = "example.com", prefix = "sub"
-  //      "example.dev"     -> root_domain = "example.dev", prefix = ""
-  domain_parts = { for d in local.domains : d => split(".", d) }
-  domain_info = {
-    for d, parts in local.domain_parts : d => {
-      root_domain = length(parts) >= 2 ? join(".", slice(parts, length(parts) - 2, length(parts))) : d
-      prefix      = join(".", slice(parts, 0, max(length(parts) - 2, 0)))
-    }
-  }
-
-  // Primary domain parsing
-  is_subdomain = local.domain_info[var.domain_name].prefix != ""
-  subdomain    = local.domain_info[var.domain_name].prefix
-  root_domain  = local.domain_info[var.domain_name].root_domain
+  # EFFECTIVEAI: one shared private zone covers the internal API, Nomad, Docker,
+  # dashboard, and wildcard sandbox hostnames.
+  private_dns_name = "${trimsuffix(var.domain_name, ".")}."
 
   backends = {
     session = {
@@ -76,9 +63,7 @@ locals {
         request_path = var.docker_reverse_proxy_port.health_path
         port         = var.docker_reverse_proxy_port.port
       }
-      groups = [
-        { group = var.api_instance_group },
-      ]
+      groups = [{ group = var.api_instance_group }]
     }
     nomad = {
       protocol                        = "HTTP"
@@ -96,154 +81,33 @@ locals {
   health_checked_backends = { for backend_index, backend_value in local.backends : backend_index => backend_value }
 }
 
-# ======== CLOUDFLARE ====================
+resource "google_dns_managed_zone" "sandbox_private" {
+  # EFFECTIVEAI: replace upstream Cloudflare DNS with a VPC-scoped private zone.
+  name     = "${var.prefix}sandbox-internal"
+  dns_name = local.private_dns_name
+  labels   = var.labels
 
-data "cloudflare_zone" "domain" {
-  name = local.root_domain
-}
+  visibility = "private"
 
-resource "cloudflare_record" "dns_auth" {
-  zone_id = data.cloudflare_zone.domain.id
-  name    = google_certificate_manager_dns_authorization.dns_auth.dns_resource_record[0].name
-  value   = google_certificate_manager_dns_authorization.dns_auth.dns_resource_record[0].data
-  type    = google_certificate_manager_dns_authorization.dns_auth.dns_resource_record[0].type
-  ttl     = 3600
-}
-
-resource "cloudflare_record" "a_star" {
-  zone_id = data.cloudflare_zone.domain.id
-  name    = local.is_subdomain ? "*.${local.subdomain}" : "*"
-  value   = google_compute_global_forwarding_rule.https.ip_address
-  type    = "A"
-  comment = var.gcp_project_id
-}
-
-data "cloudflare_zone" "domains_additional" {
-  for_each = local.domain_map
-  name     = each.value
-}
-
-
-resource "cloudflare_record" "dns_auth_additional" {
-  for_each = local.domain_map
-  zone_id  = data.cloudflare_zone.domains_additional[each.key].id
-  name     = google_certificate_manager_dns_authorization.dns_auth_additional[each.key].dns_resource_record[0].name
-  value    = google_certificate_manager_dns_authorization.dns_auth_additional[each.key].dns_resource_record[0].data
-  type     = google_certificate_manager_dns_authorization.dns_auth_additional[each.key].dns_resource_record[0].type
-  ttl      = 3600
-}
-
-
-resource "cloudflare_record" "a_star_additional" {
-  for_each = local.domain_map
-  zone_id  = data.cloudflare_zone.domains_additional[each.key].id
-  name     = "*"
-  value    = google_compute_global_forwarding_rule.https.ip_address
-  type     = "A"
-  comment  = var.gcp_project_id
-}
-
-# =======================================
-
-# Certificate
-resource "google_certificate_manager_dns_authorization" "dns_auth" {
-  name        = "${var.prefix}dns-auth"
-  description = "The default dns auth"
-  domain      = var.domain_name
-  labels      = var.labels
-}
-
-# Certificate
-resource "google_certificate_manager_dns_authorization" "dns_auth_additional" {
-  for_each    = local.domain_map
-  name        = "${var.prefix}dns-auth-${each.key}"
-  description = "The default dns auth"
-  domain      = each.value
-  labels      = var.labels
-}
-
-resource "google_certificate_manager_certificate" "root_cert" {
-  name        = "${var.prefix}root-cert"
-  description = "The wildcard cert"
-  managed {
-    domains = [var.domain_name, "*.${var.domain_name}"]
-    dns_authorizations = [
-      google_certificate_manager_dns_authorization.dns_auth.id
-    ]
+  private_visibility_config {
+    networks {
+      network_url = data.google_compute_network.existing.id
+    }
   }
-  labels = var.labels
 }
 
-resource "google_certificate_manager_certificate" "root_cert_additional" {
-  for_each    = local.domain_map
-  name        = "${var.prefix}root-cert-${each.key}"
-  description = "The wildcard cert"
-  managed {
-    domains = [each.value, "*.${each.value}"]
-    dns_authorizations = [
-      google_certificate_manager_dns_authorization.dns_auth_additional[each.key].id
-    ]
-  }
-  labels = var.labels
+resource "google_dns_record_set" "wildcard" {
+  name         = "*.${local.private_dns_name}"
+  managed_zone = google_dns_managed_zone.sandbox_private.name
+  type         = "A"
+  ttl          = 300
+  rrdatas      = [google_compute_address.orch_internal.address]
 }
 
-resource "google_certificate_manager_certificate_map" "certificate_map" {
-  name        = "${var.prefix}cert-map"
-  description = "${var.domain_name} certificate map"
-  labels      = var.labels
-}
-
-resource "google_certificate_manager_certificate_map_entry" "top_level_map_entry" {
-  name        = "${var.prefix}top-level"
-  description = "Top level map entry"
-  map         = google_certificate_manager_certificate_map.certificate_map.name
-  labels      = var.labels
-
-
-  certificates = [google_certificate_manager_certificate.root_cert.id]
-  hostname     = var.domain_name
-}
-
-resource "google_certificate_manager_certificate_map_entry" "top_level_map_entry_additional" {
-  for_each    = local.domain_map
-  name        = "${var.prefix}top-level-${each.key}"
-  description = "Top level map entry"
-  map         = google_certificate_manager_certificate_map.certificate_map.name
-  labels      = var.labels
-
-
-  certificates = [google_certificate_manager_certificate.root_cert_additional[each.key].id]
-  hostname     = each.value
-}
-
-
-resource "google_certificate_manager_certificate_map_entry" "subdomains_map_entry" {
-  name        = "${var.prefix}subdomains"
-  description = "Subdomains map entry"
-  map         = google_certificate_manager_certificate_map.certificate_map.name
-  labels      = var.labels
-
-  certificates = [google_certificate_manager_certificate.root_cert.id]
-  hostname     = "*.${var.domain_name}"
-}
-
-resource "google_certificate_manager_certificate_map_entry" "subdomains_map_entry_additional" {
-  for_each    = local.domain_map
-  name        = "${var.prefix}subdomains-${each.key}"
-  description = "Subdomains map entry"
-  map         = google_certificate_manager_certificate_map.certificate_map.name
-  labels      = var.labels
-
-  certificates = [
-    google_certificate_manager_certificate.root_cert_additional[each.key].id
-  ]
-  hostname = "*.${each.value}"
-}
-
-# Load balancers
-resource "google_compute_url_map" "orch_map" {
+resource "google_compute_region_url_map" "orch_map" {
   name            = "${var.prefix}orch-map"
-  default_service = google_compute_backend_service.default["session"].self_link
+  region          = var.gcp_region
+  default_service = google_compute_region_backend_service.default["session"].self_link
 
   host_rule {
     hosts        = concat(["api.${var.domain_name}"], [for d in var.additional_domains : "api.${d}"])
@@ -261,44 +125,53 @@ resource "google_compute_url_map" "orch_map" {
   }
 
   host_rule {
+    hosts        = concat(["dashboard-api.${var.domain_name}"], [for d in var.additional_domains : "dashboard-api.${d}"])
+    path_matcher = "dashboard-api-paths"
+  }
+
+  host_rule {
     hosts        = concat(["*.${var.domain_name}"], [for d in var.additional_domains : "*.${d}"])
     path_matcher = "session-paths"
   }
 
   path_matcher {
     name            = "api-paths"
-    default_service = google_compute_backend_service.default["api"].self_link
+    default_service = google_compute_region_backend_service.default["api"].self_link
 
     dynamic "path_rule" {
       for_each = length(var.additional_api_paths_handled_by_ingress) > 0 ? [{}] : []
 
       content {
         paths   = var.additional_api_paths_handled_by_ingress
-        service = google_compute_backend_service.ingress.self_link
+        service = google_compute_region_backend_service.ingress.self_link
       }
     }
   }
 
   path_matcher {
     name            = "docker-reverse-proxy-paths"
-    default_service = google_compute_backend_service.default["docker-reverse-proxy"].self_link
+    default_service = google_compute_region_backend_service.default["docker-reverse-proxy"].self_link
+  }
+
+  path_matcher {
+    name            = "dashboard-api-paths"
+    default_service = google_compute_region_backend_service.ingress.self_link
   }
 
   path_matcher {
     name            = "session-paths"
-    default_service = google_compute_backend_service.default["session"].self_link
+    default_service = google_compute_region_backend_service.default["session"].self_link
   }
 
   path_matcher {
     name            = "nomad-paths"
-    default_service = google_compute_backend_service.default["nomad"].self_link
+    default_service = google_compute_region_backend_service.default["nomad"].self_link
 
     path_rule {
       paths   = ["/v1/metrics"]
-      service = google_compute_backend_service.default["nomad"].self_link
+      service = google_compute_region_backend_service.default["nomad"].self_link
       route_action {
         url_rewrite {
-          // We prevent access to these routes by rewriting the path to /
           path_prefix_rewrite = "/"
           host_rewrite        = "nomad.${var.domain_name}"
         }
@@ -307,46 +180,50 @@ resource "google_compute_url_map" "orch_map" {
   }
 }
 
-### IPv4 block ###
-resource "google_compute_ssl_policy" "default" {
-  name            = "${var.prefix}https-proxy-ssl-policy"
-  profile         = "MODERN"
-  min_tls_version = "TLS_1_2"
+resource "google_compute_address" "orch_internal" {
+  # EFFECTIVEAI: reserve a stable internal VIP for the private wildcard DNS record.
+  name         = "${var.prefix}orch-internal-ip"
+  address_type = "INTERNAL"
+  region       = var.gcp_region
+  subnetwork   = data.google_compute_subnetwork.existing.id
 }
 
-resource "google_compute_target_https_proxy" "default" {
-  name    = "${var.prefix}https-proxy"
-  url_map = google_compute_url_map.orch_map.self_link
-
-  ssl_policy = google_compute_ssl_policy.default.self_link
-
-  certificate_map = "//certificatemanager.googleapis.com/${google_certificate_manager_certificate_map.certificate_map.id}"
+resource "google_compute_region_target_http_proxy" "default" {
+  # EFFECTIVEAI: private DNS removes the need for public TLS termination.
+  name    = "${var.prefix}http-proxy"
+  region  = var.gcp_region
+  url_map = google_compute_region_url_map.orch_map.self_link
 }
 
-resource "google_compute_global_forwarding_rule" "https" {
-  name                  = "${var.prefix}forwarding-rule-https"
-  target                = google_compute_target_https_proxy.default.self_link
-  load_balancing_scheme = "EXTERNAL_MANAGED"
-  port_range            = "443"
+resource "google_compute_forwarding_rule" "http" {
+  name                  = "${var.prefix}forwarding-rule-http"
+  region                = var.gcp_region
+  ip_protocol           = "TCP"
+  port_range            = "80"
+  load_balancing_scheme = "INTERNAL_MANAGED"
+  network               = data.google_compute_network.existing.id
+  subnetwork            = data.google_compute_subnetwork.existing.id
+  ip_address            = google_compute_address.orch_internal.address
+  target                = google_compute_region_target_http_proxy.default.self_link
+  allow_global_access   = true
   labels                = var.labels
 }
 
-resource "google_compute_backend_service" "default" {
+resource "google_compute_region_backend_service" "default" {
   for_each = local.backends
 
-  name = "${var.prefix}backend-${each.key}"
+  name   = "${var.prefix}backend-${each.key}"
+  region = var.gcp_region
 
   port_name = lookup(each.value, "port_name", "http")
   protocol  = lookup(each.value, "protocol", "HTTP")
 
   timeout_sec                     = lookup(each.value, "timeout_sec")
   connection_draining_timeout_sec = 1
-  compression_mode                = "DISABLED"
 
-  load_balancing_scheme = "EXTERNAL_MANAGED"
+  load_balancing_scheme = "INTERNAL_MANAGED"
   health_checks         = [google_compute_health_check.default[each.key].self_link]
 
-  security_policy = google_compute_security_policy.default[each.key].self_link
 
   log_config {
     enable = var.environment != "dev"
@@ -359,9 +236,7 @@ resource "google_compute_backend_service" "default" {
     }
   }
 
-  depends_on = [
-    google_compute_health_check.default
-  ]
+  depends_on = [google_compute_health_check.default]
 }
 
 resource "google_compute_health_check" "default" {
@@ -431,10 +306,11 @@ resource "google_compute_security_policy" "default" {
 # Firewalls
 resource "google_compute_firewall" "default-hc" {
   name    = "${var.prefix}load-balancer-hc"
-  network = var.network_name
+  network = data.google_compute_network.existing.id
   # Load balancer health check IP ranges
   # https://cloud.google.com/load-balancing/docs/health-check-concepts
   source_ranges = [
+    google_compute_subnetwork.proxy_only.ip_cidr_range,
     "130.211.0.0/22",
     "35.191.0.0/16"
   ]
@@ -459,7 +335,7 @@ resource "google_compute_firewall" "default-hc" {
 
 resource "google_compute_firewall" "client_proxy_firewall_ingress" {
   name    = "${var.prefix}${var.cluster_tag_name}-client-proxy-firewall-ingress"
-  network = var.network_name
+  network = data.google_compute_network.existing.id
 
   allow {
     protocol = "tcp"
@@ -472,12 +348,12 @@ resource "google_compute_firewall" "client_proxy_firewall_ingress" {
   target_tags = [var.cluster_tag_name]
   # Load balancer health check IP ranges
   # https://cloud.google.com/load-balancing/docs/health-check-concepts
-  source_ranges = ["130.211.0.0/22", "35.191.0.0/16"]
+  source_ranges = [google_compute_subnetwork.proxy_only.ip_cidr_range, "130.211.0.0/22", "35.191.0.0/16"]
 }
 
 resource "google_compute_firewall" "internal_remote_connection_firewall_ingress" {
   name    = "${var.prefix}${var.cluster_tag_name}-internal-remote-connection-firewall-ingress"
-  network = var.network_name
+  network = data.google_compute_network.existing.id
 
   allow {
     protocol = "tcp"
@@ -494,7 +370,7 @@ resource "google_compute_firewall" "internal_remote_connection_firewall_ingress"
 
 resource "google_compute_firewall" "remote_connection_firewall_ingress" {
   name    = "${var.prefix}${var.cluster_tag_name}-remote-connection-firewall-ingress"
-  network = var.network_name
+  network = data.google_compute_network.existing.id
 
   deny {
     protocol = "tcp"
@@ -520,7 +396,7 @@ resource "google_compute_firewall" "remote_connection_firewall_ingress" {
 
 resource "google_compute_firewall" "orch_firewall_egress" {
   name    = "${var.prefix}${var.cluster_tag_name}-firewall-egress"
-  network = var.network_name
+  network = data.google_compute_network.existing.id
 
   allow {
     protocol = "all"
@@ -681,7 +557,7 @@ resource "google_compute_security_policy" "disable-bots-log-collector" {
 resource "google_compute_router" "nat_router" {
   count   = var.api_use_nat ? 1 : 0
   name    = "${var.prefix}nat-router"
-  network = var.network_name
+  network = data.google_compute_network.existing.id
   region  = var.gcp_region
 }
 

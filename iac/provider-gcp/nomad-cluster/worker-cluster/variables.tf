@@ -86,6 +86,11 @@ variable "network_name" {
   type        = string
 }
 
+variable "network_subnet_name" {
+  description = "Name of the subnet for the cluster"
+  type        = string
+}
+
 variable "cluster_tag_name" {
   description = "Network tag applied to cluster instances for firewall rules"
   type        = string
@@ -201,6 +206,12 @@ variable "nfs_mount_opts" {
 variable "base_hugepages_percentage" {
   description = "Percentage of memory to allocate for hugepages in orchestrator"
   type        = number
+}
+
+variable "enable_nested_virtualization" {
+  description = "Whether nested virtualization should be enabled on the node pool"
+  type        = bool
+  default     = false
 }
 
 # DEPLOYMENT METADATA

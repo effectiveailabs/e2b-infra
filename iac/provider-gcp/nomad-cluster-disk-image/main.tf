@@ -16,27 +16,21 @@ provider "google" {
   region  = var.gcp_region
 }
 
-resource "google_compute_network" "packer_network" {
-  name                    = var.network_name
-  auto_create_subnetworks = false
+data "google_compute_network" "packer_network" {
+  # EFFECTIVEAI: build the image inside the shared VPC instead of provisioning
+  # a throwaway network on every init.
+  name = var.network_name
 }
 
-resource "google_compute_subnetwork" "packer_subnetwork" {
-  ip_cidr_range = "10.0.0.0/8"
-  name          = "${var.network_name}-subnetwork"
-  network       = google_compute_network.packer_network.id
-
-  log_config {
-    aggregation_interval = "INTERVAL_15_MIN"
-    flow_sampling        = 0
-    metadata             = "EXCLUDE_ALL_METADATA"
-  }
+data "google_compute_subnetwork" "packer_subnetwork" {
+  name   = var.subnetwork_name
+  region = var.gcp_region
 }
 
 
 resource "google_compute_firewall" "internal_remote_connection_firewall_ingress" {
   name    = "${var.network_name}-firewall-ingress"
-  network = google_compute_network.packer_network.name
+  network = data.google_compute_network.packer_network.name
 
   allow {
     protocol = "tcp"

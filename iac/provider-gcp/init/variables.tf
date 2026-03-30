@@ -20,6 +20,17 @@ variable "gcp_region" {
   type = string
 }
 
+variable "postgres_connection_string" {
+  description = "Initial Postgres connection string value stored in Secret Manager."
+  type        = string
+  sensitive   = true
+}
+
+variable "core_repository_name" {
+  description = "Existing Artifact Registry repository that stores core E2B images."
+  type        = string
+}
+
 variable "template_bucket_location" {
   type        = string
   description = "The location of the FC template bucket"

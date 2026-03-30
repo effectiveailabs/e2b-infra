@@ -167,7 +167,11 @@ resource "google_compute_instance_template" "template" {
   }
 
   scheduling {
-    on_host_maintenance = "MIGRATE"
+    on_host_maintenance = var.enable_nested_virtualization ? "TERMINATE" : "MIGRATE"
+  }
+
+  advanced_machine_features {
+    enable_nested_virtualization = var.enable_nested_virtualization
   }
 
   disk {
@@ -207,8 +211,9 @@ resource "google_compute_instance_template" "template" {
   }
 
   network_interface {
-    network  = var.network_name
-    nic_type = var.network_interface_type
+    network    = var.network_name
+    subnetwork = var.network_subnet_name
+    nic_type   = var.network_interface_type
 
     dynamic "access_config" {
       for_each = ["public_ip"]

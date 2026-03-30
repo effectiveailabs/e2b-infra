@@ -1,14 +1,4 @@
 
-resource "google_secret_manager_secret" "cloudflare_api_token" {
-  secret_id = "${var.prefix}cloudflare-api-token"
-
-  replication {
-    auto {}
-  }
-
-  depends_on = [time_sleep.secrets_api_wait_60_seconds]
-}
-
 resource "google_secret_manager_secret" "consul_acl_token" {
   secret_id = "${var.prefix}consul-secret-id"
 
@@ -158,6 +148,12 @@ resource "google_secret_manager_secret" "postgres_connection_string" {
   }
 
   depends_on = [time_sleep.secrets_api_wait_60_seconds]
+}
+
+resource "google_secret_manager_secret_version" "postgres_connection_string" {
+  # EFFECTIVEAI: preserve the existing env-file workflow for supplying the DB URL.
+  secret      = google_secret_manager_secret.postgres_connection_string.name
+  secret_data = var.postgres_connection_string
 }
 
 resource "google_secret_manager_secret" "supabase_jwt_secrets" {
