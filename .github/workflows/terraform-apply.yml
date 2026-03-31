@@ -1,0 +1,144 @@
+name: Terraform Apply
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'iac/provider-gcp/**'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Terraform environment to plan/apply'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+
+# ──────────────────────────────────────────────────────────────
+# Job graph:
+#
+#   plan ──▶ apply  (no manual approval — dev-like flow)
+# ──────────────────────────────────────────────────────────────
+
+jobs:
+  plan:
+    name: Plan (${{ matrix.environment }})
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+      id-token: write
+    strategy:
+      fail-fast: false
+      matrix:
+        environment: [staging]
+    outputs:
+      has_changes: ${{ steps.plan_output.outputs.has_changes }}
+      plan_summary: ${{ steps.plan_output.outputs.plan_summary }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup environment
+        uses: ./.github/actions/deploy-setup
+        with:
+          environment: ${{ matrix.environment }}
+          infisical_client_id: ${{ secrets.INFISICAL_CLIENT_ID }}
+          infisical_client_secret: ${{ secrets.INFISICAL_CLIENT_SECRET }}
+          install_gcloud: 'true'
+
+      - name: Terraform plan
+        id: tf_plan
+        working-directory: iac/provider-gcp
+        env:
+          TF_IN_AUTOMATION: 'true'
+        run: |
+          # Plan infra modules only (skip Nomad jobs — those deploy separately)
+          TARGETS=$(grep '^module' main.tf | awk '{print $2}' | tr -d '"' | grep -v nomad | awk '{print "-target=module." $0}' | xargs)
+
+          terraform plan \
+            -input=false \
+            -no-color \
+            -detailed-exitcode \
+            -compact-warnings \
+            -parallelism=20 \
+            $TARGETS \
+            -out=tfplan 2>&1 | tee plan.out
+          plan_exit=${PIPESTATUS[0]}
+
+          if [ $plan_exit -eq 0 ] || [ $plan_exit -eq 2 ]; then
+            terraform show -no-color tfplan > plan.show
+          fi
+          echo "exit_code=$plan_exit" >> $GITHUB_OUTPUT
+          if [ $plan_exit -ne 0 ] && [ $plan_exit -ne 2 ]; then
+            echo "::error::Terraform plan exited with unexpected code $plan_exit"
+            exit 1
+          fi
+
+      - name: Extract plan summary
+        id: plan_output
+        working-directory: iac/provider-gcp
+        run: |
+          if [ "${{ steps.tf_plan.outputs.exit_code }}" != "2" ]; then
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          echo "has_changes=true" >> $GITHUB_OUTPUT
+
+          summary=$(grep -E '^Plan:|^No changes' plan.show | tail -1)
+          echo "plan_summary=$summary" >> $GITHUB_OUTPUT
+
+      - name: Upload plan artifact
+        if: steps.plan_output.outputs.has_changes == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: tfplan-${{ matrix.environment }}
+          path: |
+            iac/provider-gcp/tfplan
+            iac/provider-gcp/plan.out
+            iac/provider-gcp/plan.show
+
+  apply:
+    name: Apply (${{ matrix.environment }})
+    needs: plan
+    if: needs.plan.outputs.has_changes == 'true'
+    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        environment: [staging]
+    concurrency:
+      group: terraform-apply-e2b-${{ matrix.environment }}
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup environment
+        uses: ./.github/actions/deploy-setup
+        with:
+          environment: ${{ matrix.environment }}
+          infisical_client_id: ${{ secrets.INFISICAL_CLIENT_ID }}
+          infisical_client_secret: ${{ secrets.INFISICAL_CLIENT_SECRET }}
+          install_gcloud: 'true'
+
+      - name: Download plan artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: tfplan-${{ matrix.environment }}
+          path: iac/provider-gcp
+
+      - name: Terraform apply
+        working-directory: iac/provider-gcp
+        env:
+          TF_IN_AUTOMATION: 'true'
+        run: |
+          terraform apply \
+            -auto-approve \
+            -input=false \
+            -compact-warnings \
+            -parallelism=20 \
+            tfplan
