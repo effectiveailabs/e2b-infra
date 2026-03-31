@@ -30,8 +30,10 @@ jobs:
         uses: ./.github/actions/deploy-setup
         with:
           environment: ${{ matrix.environment }}
-          infisical_client_id: ${{ secrets.INFISICAL_CLIENT_ID }}
-          infisical_client_secret: ${{ secrets.INFISICAL_CLIENT_SECRET }}
+          gcp_project_id: ${{ vars.GCP_PROJECT_ID }}
+          gcp_region: ${{ vars.GCP_REGION }}
+          terraform_state_bucket: ${{ vars.TERRAFORM_STATE_BUCKET }}
+          workload_identity_provider: ${{ secrets.GH_WORKLOAD_IDENTITY_PROVIDER }}
           install_gcloud: 'true'
 
       - name: Terraform validate
@@ -44,7 +46,6 @@ jobs:
         env:
           TF_IN_AUTOMATION: 'true'
         run: |
-          # Plan infra modules only (skip Nomad jobs — those deploy separately)
           TARGETS=$(grep '^module' main.tf | awk '{print $2}' | tr -d '"' | grep -v nomad | awk '{print "-target=module." $0}' | xargs)
 
           terraform plan \
@@ -53,6 +54,7 @@ jobs:
             -detailed-exitcode \
             -compact-warnings \
             -parallelism=20 \
+            -var-file=environments/${{ matrix.environment }}.tfvars \
             $TARGETS \
             -out=tfplan 2>&1 | tee plan.out
           plan_exit=${PIPESTATUS[0]}
