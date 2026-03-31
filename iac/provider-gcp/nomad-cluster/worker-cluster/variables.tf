@@ -86,6 +86,11 @@ variable "network_name" {
   type        = string
 }
 
+variable "subnetwork_name" {
+  description = "Name of the subnet for the cluster"
+  type        = string
+}
+
 variable "cluster_tag_name" {
   description = "Network tag applied to cluster instances for firewall rules"
   type        = string
@@ -96,12 +101,6 @@ variable "cluster_tag_name" {
 variable "google_service_account_email" {
   description = "Email of the Google service account used by instances"
   type        = string
-}
-
-variable "google_service_account_key" {
-  description = "JSON key for the Google service account"
-  type        = string
-  sensitive   = true
 }
 
 # ---------------------------------------------------------------------------------------------------------------------

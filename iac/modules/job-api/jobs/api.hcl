@@ -5,36 +5,26 @@ job "api" {
   group "api-service" {
     count = ${count}
 
-    // Try to restart the task indefinitely
-    // Tries to restart every 5 seconds
     restart {
-      interval         = "5s"
-      attempts         = 1
-      delay            = "5s"
-      mode             = "delay"
+      interval = "5s"
+      attempts = 1
+      delay    = "5s"
+      mode     = "delay"
     }
 
     network {
-      port "api" {
-        static = "${port_number}"
-      }
-
-      port "grpc" {
-        static = "${api_grpc_port}"
-      }
-
-      %{ if prevent_colocation }
+      port "api" { static = "${port_number}" }
+      port "grpc" { static = "${api_grpc_port}" }
+%{ if prevent_colocation }
       port "scheduling-block" {
-        // This port is used to block scheduling of jobs with the same block on the same node.
-        // We use this to block API and Loki from being scheduled on the same node.
         static = 40234
       }
-      %{ endif }
+%{ endif }
     }
 
     constraint {
-      operator  = "distinct_hosts"
-      value     = "true"
+      operator = "distinct_hosts"
+      value    = "true"
     }
 
     service {
@@ -44,10 +34,9 @@ job "api" {
 
       tags = [
         "traefik.enable=true",
-
         "traefik.http.routers.api.rule=HostRegexp(`api.{domain:.+}`)",
         "traefik.http.routers.api.ruleSyntax=v2",
-        "traefik.http.routers.api.priority=500"
+        "traefik.http.routers.api.priority=500",
       ]
 
       check {
@@ -75,30 +64,19 @@ job "api" {
     }
 
 %{ if update_stanza }
-    # An update stanza to enable rolling updates of the service
     update {
-      # The number of extra instances to run during the update
       max_parallel      = 1
-      # Allows to spawn new version of the service before killing the old one
       canary            = 1
-      # Time to wait for the canary to be healthy
       min_healthy_time  = "10s"
-      # Time to wait for the canary to be healthy, if not it will be marked as failed
       healthy_deadline  = "10800s"
-      # Time to wait for the overall update to complete. Otherwise, the deployment is marked as failed and rolled back
-      # This is on purpose very tight, we want to fail immediately if the deployment is marked as unhealthy
       progress_deadline = "10801s"
-      # Whether to promote the canary if the rest of the group is not healthy
       auto_promote      = true
-      # Whether to automatically rollback if the update fails
       auto_revert       = true
     }
 %{ endif }
 
     task "start" {
       driver       = "docker"
-      # If we need more than 30s we will need to update the max_kill_timeout in nomad
-      # https://developer.hashicorp.com/nomad/docs/configuration/client#max_kill_timeout
       kill_timeout = "30s"
       kill_signal  = "SIGTERM"
 
@@ -117,46 +95,22 @@ job "api" {
         API_GRPC_PORT                  = "${api_grpc_port}"
         ADMIN_TOKEN                    = "${admin_token}"
         SANDBOX_ACCESS_TOKEN_HASH_SEED = "${sandbox_access_token_hash_seed}"
-
         POSTGRES_CONNECTION_STRING              = "${postgres_connection_string}"
         DB_MAX_OPEN_CONNECTIONS                = "${db_max_open_connections}"
         DB_MIN_IDLE_CONNECTIONS                = "${db_min_idle_connections}"
-        AUTH_DB_CONNECTION_STRING               = "${postgres_connection_string}"
-        AUTH_DB_READ_REPLICA_CONNECTION_STRING  = "${postgres_read_replica_connection_string}"
+        AUTH_DB_CONNECTION_STRING              = "${postgres_connection_string}"
+        AUTH_DB_READ_REPLICA_CONNECTION_STRING = "${postgres_read_replica_connection_string}"
         AUTH_DB_MAX_OPEN_CONNECTIONS           = "${auth_db_max_open_connections}"
         AUTH_DB_MIN_IDLE_CONNECTIONS           = "${auth_db_min_idle_connections}"
-        SUPABASE_JWT_SECRETS                    = "${supabase_jwt_secrets}"
-
-        LOKI_URL                      = "${loki_url}"
-        CLICKHOUSE_CONNECTION_STRING  = "${clickhouse_connection_string}"
-
-        POSTHOG_API_KEY                = "${posthog_api_key}"
-        ANALYTICS_COLLECTOR_HOST       = "${analytics_collector_host}"
-        ANALYTICS_COLLECTOR_API_TOKEN  = "${analytics_collector_api_token}"
-        LOGS_COLLECTOR_ADDRESS         = "${logs_collector_address}"
-        OTEL_COLLECTOR_GRPC_ENDPOINT   = "${otel_collector_grpc_endpoint}"
-
-        REDIS_POOL_SIZE                = "${redis_pool_size}"
-        REDIS_CLUSTER_URL              = "${redis_cluster_url}"
-        REDIS_TLS_CA_BASE64            = "${redis_tls_ca_base64}"
-        REDIS_URL                      = "${redis_url}"
-
-        SANDBOX_STORAGE_BACKEND        = "${sandbox_storage_backend}"
-
-%{ if launch_darkly_api_key != "" }
-        LAUNCH_DARKLY_API_KEY         = "${launch_darkly_api_key}"
-%{ endif }
-
-        # This is here just because it is required in some part of our code which is transitively imported
-        TEMPLATE_BUCKET_NAME          = "skip"
-
-%{ if default_persistent_volume_type != "" }
-        DEFAULT_PERSISTENT_VOLUME_TYPE = "${ default_persistent_volume_type }"
-%{ endif }
-
+        REDIS_POOL_SIZE                        = "${redis_pool_size}"
+        REDIS_CLUSTER_URL                      = "${redis_cluster_url}"
+        REDIS_TLS_CA_BASE64                    = "${redis_tls_ca_base64}"
+        REDIS_URL                              = "${redis_url}"
+        SANDBOX_STORAGE_BACKEND                = "${sandbox_storage_backend}"
+        TEMPLATE_BUCKET_NAME                   = "skip"
 %{ for key, value in job_env_vars }
   %{ if value != "" }
-        ${ key } = "${ value }"
+        ${key} = "${value}"
   %{ endif }
 %{ endfor }
       }
@@ -165,9 +119,7 @@ job "api" {
         network_mode = "host"
         image        = "${api_docker_image}"
         ports        = ["${port_name}"]
-        args         = [
-          "--port", "${port_number}",
-        ]
+        args         = ["--port", "${port_number}"]
       }
     }
 
@@ -175,7 +127,7 @@ job "api" {
       driver = "docker"
 
       env {
-        POSTGRES_CONNECTION_STRING="${postgres_connection_string}"
+        POSTGRES_CONNECTION_STRING = "${postgres_connection_string}"
       }
 
       config {
@@ -188,7 +140,7 @@ job "api" {
       }
 
       lifecycle {
-        hook = "prestart"
+        hook    = "prestart"
         sidecar = false
       }
     }

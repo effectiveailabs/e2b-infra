@@ -8,7 +8,6 @@ locals {
     FC_ENV_PIPELINE_BUCKET_NAME       = var.fc_env_pipeline_bucket_name
     DOCKER_CONTEXTS_BUCKET_NAME       = var.docker_contexts_bucket_name
     GCP_REGION                        = var.gcp_region
-    GOOGLE_SERVICE_ACCOUNT_KEY        = var.google_service_account_key
     NOMAD_TOKEN                       = var.nomad_acl_token_secret
     CONSUL_TOKEN                      = var.consul_acl_token_secret
     RUN_CONSUL_FILE_HASH              = var.file_hash["scripts/run-consul.sh"]
@@ -167,7 +166,11 @@ resource "google_compute_instance_template" "template" {
   }
 
   scheduling {
-    on_host_maintenance = "MIGRATE"
+    on_host_maintenance = "TERMINATE"
+  }
+
+  advanced_machine_features {
+    enable_nested_virtualization = true
   }
 
   disk {
@@ -207,13 +210,9 @@ resource "google_compute_instance_template" "template" {
   }
 
   network_interface {
-    network  = var.network_name
-    nic_type = var.network_interface_type
-
-    dynamic "access_config" {
-      for_each = ["public_ip"]
-      content {}
-    }
+    network    = var.network_name
+    subnetwork = var.subnetwork_name
+    nic_type   = var.network_interface_type
   }
 
   # For a full list of oAuth 2.0 Scopes, see https://developers.google.com/identity/protocols/googlescopes

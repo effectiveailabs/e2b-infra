@@ -1,32 +1,18 @@
-variable "prefix" {
-  type = string
-}
-
-variable "bucket_prefix" {
-  type = string
-}
-
-variable "labels" {
-  description = "The labels to attach to resources created by this module"
-  type        = map(string)
-}
-
-variable "gcp_project_id" {
-  description = "The project to deploy the cluster in"
-  type        = string
-}
-
-variable "gcp_region" {
-  type = string
-}
-
-variable "template_bucket_location" {
-  type        = string
-  description = "The location of the FC template bucket"
-}
-
-variable "template_bucket_name" {
-  type        = string
-  description = "The name of the FC template bucket"
-  default     = ""
+variable "environment" { type = string }
+variable "prefix" { type = string }
+variable "project_number" { type = string }
+variable "labels" { type = map(string) }
+variable "gcp_project_id" { type = string }
+variable "gcp_region" { type = string }
+variable "template_bucket_location" { type = string }
+variable "template_bucket_name" { type = string }
+variable "docker_context_bucket_name" { type = string }
+variable "setup_bucket_name" { type = string }
+variable "fc_kernels_bucket_name" { type = string }
+variable "fc_versions_bucket_name" { type = string }
+variable "fc_env_pipeline_bucket_name" { type = string }
+variable "build_cache_bucket_name" { type = string }
+variable "core_repository_id" {
+  type    = string
+  default = "e2b-core"
 }

@@ -30,58 +30,15 @@ variable "provider_gcp_config" {
   }
 }
 
-variable "node_pool" {
-  type = string
-}
-
-variable "port" {
-  type = number
-}
-
-variable "proxy_port" {
-  type = number
-}
-
-variable "environment" {
-  type = string
-}
-
-variable "artifact_source" {
-  type        = string
-  description = "Full artifact URL for the orchestrator binary (e.g. gcs::https://... or s3::https://...)"
-}
-
-variable "orchestrator_checksum" {
-  type        = string
-  description = "Hex checksum of the orchestrator binary, used for change detection"
-}
-
-# Env vars - required
-variable "logs_collector_address" {
-  type = string
-}
-
-variable "otel_collector_grpc_endpoint" {
-  type = string
-}
-
-variable "envd_timeout" {
-  type = string
-}
-
-variable "template_bucket_name" {
-  type = string
-}
-
-variable "allow_sandbox_internet" {
-  type = string
-}
-
-variable "clickhouse_connection_string" {
-  type      = string
-  default   = ""
-  sensitive = true
-}
+variable "node_pool" { type = string }
+variable "port" { type = number }
+variable "proxy_port" { type = number }
+variable "environment" { type = string }
+variable "artifact_source" { type = string }
+variable "orchestrator_checksum" { type = string }
+variable "envd_timeout" { type = string }
+variable "template_bucket_name" { type = string }
+variable "allow_sandbox_internet" { type = bool }
 
 variable "redis_url" {
   type      = string
@@ -109,20 +66,7 @@ variable "consul_token" {
   sensitive = true
 }
 
-variable "domain_name" {
-  type = string
-}
-
-variable "shared_chunk_cache_path" {
-  type    = string
-  default = ""
-}
-
-variable "launch_darkly_api_key" {
-  type      = string
-  default   = ""
-  sensitive = true
-}
+variable "domain_name" { type = string }
 
 variable "orchestrator_services" {
   type    = string
@@ -137,11 +81,6 @@ variable "build_cache_bucket_name" {
 variable "use_local_namespace_storage" {
   type    = bool
   default = false
-}
-
-variable "persistent_volume_mounts" {
-  type    = map(string)
-  default = {}
 }
 
 variable "job_env_vars" {

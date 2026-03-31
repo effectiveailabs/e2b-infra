@@ -1,3 +1,11 @@
-output "shared_chunk_cache_path" {
-  value = var.filestore_cache_enabled ? "${local.nfs_mount_path}/${local.nfs_mount_subdir}" : ""
+output "sandbox_dns_zone" {
+  value = module.network.sandbox_dns_zone
+}
+
+output "internal_lb_ip" {
+  value = module.network.internal_lb_ip
+}
+
+output "sandbox_domain" {
+  value = module.network.sandbox_domain
 }

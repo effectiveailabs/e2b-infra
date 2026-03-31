@@ -15,7 +15,5 @@ resource "nomad_job" "ingress" {
 
     consul_token    = var.consul_token
     consul_endpoint = var.consul_endpoint
-
-    otel_collector_grpc_endpoint = var.otel_collector_grpc_endpoint
   })
 }

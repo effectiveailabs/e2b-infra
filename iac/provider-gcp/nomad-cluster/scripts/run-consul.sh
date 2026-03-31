@@ -39,7 +39,7 @@ function print_usage {
   echo
   echo "Usage: run-consul [OPTIONS]"
   echo
-  echho "This script is used to configure and run Consul on a Google Compute Instance."
+  echo "This script is used to configure and run Consul on a Google Compute Instance."
   echo
   echo "Options:"
   echo
@@ -179,6 +179,7 @@ function generate_consul_config {
 
   instance_ip_address=$(get_instance_ip_address)
   instance_name=$(get_instance_name)
+  instance_id="$instance_name"
   instance_region=$(get_instance_region)
   project_id=$(get_instance_project_id)
 
@@ -324,7 +325,7 @@ EOF
   local -r service_config=$(
     cat <<EOF
 [Service]
-Type=notify
+Type=simple
 User=$consul_user
 Group=$consul_user
 ExecStart=$consul_bin_dir/consul agent -config-dir $consul_config_dir -data-dir $consul_data_dir
@@ -332,7 +333,7 @@ ExecReload=$consul_bin_dir/consul reload
 ExecStop=$consul_bin_dir/consul leave
 KillMode=process
 Restart=on-failure
-TimeoutSec=300s
+TimeoutSec=30s
 LimitNOFILE=65536
 $(split_by_lines "Environment=" "${environment[@]}")
 EOF
@@ -364,7 +365,21 @@ function start_consul {
 
   sudo systemctl daemon-reload
   sudo systemctl enable consul.service
-  sudo systemctl restart consul.service
+  # Start consul but don't fail if systemd notify times out.
+  # Consul Type=notify may not send READY before TimeoutSec (300s),
+  # especially on first boot when ACL isn't bootstrapped yet.
+  # We verify readiness below by polling the HTTP API instead.
+  sudo systemctl restart consul.service || true
+
+  log_info "Waiting for Consul HTTP API to become available..."
+  for i in $(seq 1 60); do
+    if curl -s http://127.0.0.1:8500/v1/status/leader >/dev/null 2>&1; then
+      log_info "Consul HTTP API is ready (attempt $i/60)"
+      return 0
+    fi
+    sleep 2
+  done
+  log_info "WARNING: Consul HTTP API not ready after 120s, continuing anyway"
 }
 
 function bootstrap {
@@ -380,8 +395,12 @@ function bootstrap {
       local consul_token="$1"
       log_info "Bootstrapping Consul"
       echo "${consul_token}" >/tmp/consul.token
-      consul acl bootstrap /tmp/consul.token
-      rm /tmp/consul.token
+      if consul acl bootstrap /tmp/consul.token 2>&1; then
+        log_info "Consul ACL bootstrapped successfully"
+      else
+        log_info "Consul ACL bootstrap returned error (likely already bootstrapped, continuing)"
+      fi
+      rm -f /tmp/consul.token
 
       break
     fi
@@ -572,7 +591,6 @@ function run {
       ;;
     --autopilot-disable-upgrade-migration)
       disable_upgrade_migration="true"
-      shift
       ;;
     --autopilot-upgrade-version-tag)
       assert_not_empty "$key" "$2"

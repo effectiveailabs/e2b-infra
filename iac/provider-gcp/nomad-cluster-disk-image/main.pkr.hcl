@@ -20,16 +20,20 @@ source "googlecompute" "orch" {
   disk_size     = 10
   disk_type     = "pd-ssd"
 
+  # Optional: pre-generated access token (bypasses ADC)
+  access_token = var.access_token != "" ? var.access_token : null
+
   # This is used only for building the image and the GCE VM is then deleted
   machine_type = "n1-standard-4"
 
   # Enable nested virtualization
   image_licenses = ["projects/vm-options/global/licenses/enable-vmx"]
 
-  # Enable IAP for SSH
+  # SSH access: use external IP (simpler than IAP, build VM is ephemeral)
   network    = var.network_name
-  subnetwork = "${var.network_name}-subnetwork"
-  use_iap    = true
+  subnetwork = var.subnetwork_name != "" ? var.subnetwork_name : "${var.network_name}-subnetwork"
+  tags       = ["packer-ssh"]
+  use_iap    = false
 }
 
 locals {
