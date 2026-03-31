@@ -1,0 +1,155 @@
+name: Terraform Plan (PR)
+
+on:
+  pull_request:
+    paths:
+      - 'iac/provider-gcp/**'
+
+concurrency:
+  group: terraform-plan-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  id-token: write
+  pull-requests: write
+
+jobs:
+  plan:
+    name: Plan (${{ matrix.environment }})
+    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        environment: [staging]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup environment
+        uses: ./.github/actions/deploy-setup
+        with:
+          environment: ${{ matrix.environment }}
+          infisical_client_id: ${{ secrets.INFISICAL_CLIENT_ID }}
+          infisical_client_secret: ${{ secrets.INFISICAL_CLIENT_SECRET }}
+          install_gcloud: 'true'
+
+      - name: Terraform validate
+        working-directory: iac/provider-gcp
+        run: terraform validate -no-color
+
+      - name: Terraform plan
+        id: plan
+        working-directory: iac/provider-gcp
+        env:
+          TF_IN_AUTOMATION: 'true'
+        run: |
+          # Plan infra modules only (skip Nomad jobs — those deploy separately)
+          TARGETS=$(grep '^module' main.tf | awk '{print $2}' | tr -d '"' | grep -v nomad | awk '{print "-target=module." $0}' | xargs)
+
+          terraform plan \
+            -input=false \
+            -no-color \
+            -detailed-exitcode \
+            -compact-warnings \
+            -parallelism=20 \
+            $TARGETS \
+            -out=tfplan 2>&1 | tee plan.out
+          plan_exit=${PIPESTATUS[0]}
+
+          if [ $plan_exit -eq 0 ]; then
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+            echo "outcome=no-changes" >> $GITHUB_OUTPUT
+          elif [ $plan_exit -eq 2 ]; then
+            terraform show -no-color tfplan > plan.show
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+            echo "outcome=changes" >> $GITHUB_OUTPUT
+          else
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+            echo "outcome=error" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+
+      - name: Build PR comment
+        id: comment
+        if: always()
+        working-directory: iac/provider-gcp
+        env:
+          ENVIRONMENT: ${{ matrix.environment }}
+          PLAN_OUTCOME: ${{ steps.plan.outputs.outcome }}
+          HAS_CHANGES: ${{ steps.plan.outputs.has_changes }}
+        run: |
+          {
+            echo 'body<<COMMENT_EOF'
+
+            if [ -z "$PLAN_OUTCOME" ]; then
+              echo "### ❌ Terraform Plan — e2b-infra \`$ENVIRONMENT\`"
+              echo ""
+              echo "A step before \`terraform plan\` failed. Check the [workflow run]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID) for details."
+            elif [ "$PLAN_OUTCOME" = "error" ]; then
+              echo "### ❌ Terraform Plan — e2b-infra \`$ENVIRONMENT\`"
+              echo ""
+              echo "Plan failed. Check the [workflow run]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID) for details."
+              echo ""
+              echo "<details>"
+              echo "<summary>Error output</summary>"
+              echo ""
+              echo '```'
+              tail -50 plan.out 2>/dev/null || echo "(no plan output available)"
+              echo '```'
+              echo "</details>"
+            elif [ "$HAS_CHANGES" = "false" ]; then
+              echo "### ✅ Terraform Plan — e2b-infra \`$ENVIRONMENT\`"
+              echo ""
+              echo "No changes. Infrastructure is up-to-date."
+            else
+              summary=$(grep -E '^Plan:|^No changes' plan.show | tail -1)
+              destroyed=$(grep -E 'will be destroyed' plan.show \
+                | sed 's/^[[:space:]]*# //' \
+                | sed 's/ will be destroyed$//' \
+                || true)
+
+              echo "### 📋 Terraform Plan — e2b-infra \`$ENVIRONMENT\`"
+              echo ""
+              echo "**$summary**"
+              echo ""
+              if [ -n "$destroyed" ]; then
+                echo "> [!CAUTION]"
+                echo "> **Resources being destroyed:**"
+                echo "$destroyed" | while IFS= read -r resource; do
+                  [ -n "$resource" ] && echo "> - \`$resource\`"
+                done
+                echo ""
+              fi
+              echo "<details>"
+              echo "<summary>Full plan output (click to expand)</summary>"
+              echo ""
+              echo '```hcl'
+              head -c 60000 plan.show
+              echo '```'
+              echo "</details>"
+            fi
+
+            echo ""
+            echo "*Workflow run: [$GITHUB_RUN_ID]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID)*"
+
+            echo 'COMMENT_EOF'
+          } >> $GITHUB_OUTPUT
+
+      - name: Find existing comment
+        if: always()
+        uses: peter-evans/find-comment@v3
+        id: find_comment
+        with:
+          issue-number: ${{ github.event.pull_request.number }}
+          comment-author: 'github-actions[bot]'
+          body-includes: 'Terraform Plan — e2b-infra `${{ matrix.environment }}`'
+
+      - name: Post or update PR comment
+        if: always()
+        uses: peter-evans/create-or-update-comment@v4
+        with:
+          issue-number: ${{ github.event.pull_request.number }}
+          comment-id: ${{ steps.find_comment.outputs.comment-id }}
+          body: ${{ steps.comment.outputs.body }}
+          edit-mode: replace

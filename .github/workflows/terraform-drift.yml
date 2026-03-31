@@ -1,0 +1,84 @@
+name: Terraform Drift Check
+
+on:
+  schedule:
+    - cron: '0 6 * * *' # daily at 06:00 UTC
+  workflow_dispatch:
+
+jobs:
+  plan:
+    name: Drift check (${{ matrix.environment }})
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+      id-token: write
+    strategy:
+      matrix:
+        environment: [staging]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup environment
+        uses: ./.github/actions/deploy-setup
+        with:
+          environment: ${{ matrix.environment }}
+          infisical_client_id: ${{ secrets.INFISICAL_CLIENT_ID }}
+          infisical_client_secret: ${{ secrets.INFISICAL_CLIENT_SECRET }}
+          install_gcloud: 'true'
+
+      - name: Terraform plan
+        id: tf_plan
+        working-directory: iac/provider-gcp
+        env:
+          TF_IN_AUTOMATION: 'true'
+        run: |
+          # Plan infra modules only (skip Nomad jobs)
+          TARGETS=$(grep '^module' main.tf | awk '{print $2}' | tr -d '"' | grep -v nomad | awk '{print "-target=module." $0}' | xargs)
+
+          terraform plan \
+            -input=false \
+            -no-color \
+            -compact-warnings \
+            -parallelism=20 \
+            $TARGETS \
+            -out=tfplan 2>&1 | tee plan.out
+          plan_exit=$?
+          if [ $plan_exit -eq 0 ] || [ $plan_exit -eq 2 ]; then
+            terraform show -no-color tfplan > plan.show
+          fi
+          echo "exit_code=$plan_exit" >> $GITHUB_OUTPUT
+          exit $plan_exit
+
+      - name: Determine drift
+        id: drift
+        working-directory: iac/provider-gcp
+        run: |
+          if grep -qE "(Plan: [1-9][0-9]* to add|[1-9][0-9]* to change|[1-9][0-9]* to destroy)" plan.out; then
+            echo "drift=true" >> $GITHUB_OUTPUT
+          else
+            echo "drift=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Post drift to Slack
+        if: steps.drift.outputs.drift == 'true' && vars.SLACK_INFRA_WEBHOOK_URL != ''
+        env:
+          ENVIRONMENT: ${{ matrix.environment }}
+          WEBHOOK_URL: ${{ vars.SLACK_INFRA_WEBHOOK_URL }}
+        working-directory: iac/provider-gcp
+        run: |
+          SHORT_PLAN=$(sed -n '1,200p' plan.out | sed 's/\`/"/g')
+          payload=$(jq -n \
+            --arg env "$ENVIRONMENT" \
+            --arg url "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
+            --arg plan "${SHORT_PLAN}" \
+            '{
+              text: "⚠️ e2b-infra Terraform drift detected",
+              blocks: [
+                {"type":"section","text":{"type":"mrkdwn","text":("*⚠️ Terraform drift detected in e2b-infra `" + $env + "`*")}},
+                {"type":"section","text":{"type":"mrkdwn","text":"Showing first 200 lines of plan output:"}},
+                {"type":"section","text":{"type":"mrkdwn","text":("```" + $plan + "```")}},
+                {"type":"actions","elements":[{"type":"button","text":{"type":"plain_text","text":"View run"},"url":$url}]}
+              ]
+            }')
+          curl -X POST -H 'Content-type: application/json' --data "$payload" "$WEBHOOK_URL"
