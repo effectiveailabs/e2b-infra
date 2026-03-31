@@ -453,14 +453,3 @@ variable "orchestrator_env_vars" {
   default = {}
 }
 
-variable "vm_service_account_email" {
-  description = "Service account email for E2B VMs. Defaults to the project's default compute SA."
-  type        = string
-  default     = ""
-}
-
-variable "skip_project_iam_grants" {
-  description = "Skip project-level IAM grants (when deployer lacks setIamPolicy permission)."
-  type        = bool
-  default     = true
-}

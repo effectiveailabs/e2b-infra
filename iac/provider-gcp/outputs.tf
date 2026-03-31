@@ -12,7 +12,7 @@ output "subnetwork_name" {
 
 output "service_account_email" {
   description = "Service account used by E2B VMs"
-  value       = local.vm_service_account_email
+  value       = module.init.service_account_email
 }
 
 output "terraform_state_bucket" {

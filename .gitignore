@@ -18,3 +18,4 @@ go.work.sum
 /packages/fc-kernels
 /packages/fc-versions
 *.tfplan
+tfplan*

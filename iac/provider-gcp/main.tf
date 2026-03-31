@@ -42,13 +42,6 @@ locals {
   prefix      = "${local.name_prefix}-"
   domain_name = "sandbox.e2b.${var.environment}.internal"
 
-  # Use default compute SA for VMs (has AR reader + Cloud SQL client at project level).
-  # Override with var.vm_service_account_email to use a custom SA once IAM is granted.
-  vm_service_account_email = coalesce(
-    var.vm_service_account_email,
-    "${var.project_number}-compute@developer.gserviceaccount.com",
-  )
-
   common_labels = merge(
     {
       application = "e2b"
@@ -163,7 +156,6 @@ module "init" {
   fc_env_pipeline_bucket_name = local.env_pipeline_bucket_name
   build_cache_bucket_name     = local.build_cache_bucket_name
   core_repository_id          = var.core_repository_id
-  vm_service_account_email    = local.vm_service_account_email
 
   depends_on = [google_project_service.enabled]
 }
@@ -199,7 +191,7 @@ module "cluster" {
   docker_reverse_proxy_port = var.docker_reverse_proxy_port
   nomad_port                = var.nomad_http_port
 
-  google_service_account_email = local.vm_service_account_email
+  google_service_account_email = module.init.service_account_email
   domain_name                  = local.domain_name
   additional_domains           = []
 
@@ -222,7 +214,7 @@ module "cluster" {
   server_boot_disk_type    = var.node_disk_type
   server_boot_disk_size_gb = var.server_boot_disk_size_gb
 
-  skip_project_iam_grants = var.skip_project_iam_grants
+  skip_project_iam_grants = false
 
   depends_on = [module.init]
 }
