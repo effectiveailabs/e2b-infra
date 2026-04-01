@@ -300,6 +300,8 @@ jobs:
           echo "Found Nomad server: $SERVER_VM in $SERVER_ZONE"
 
       - name: Open IAP tunnel to Nomad
+        env:
+          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
         run: |
           # Map the internal Nomad DNS to localhost so both the Nomad TF
           # provider and external data source scripts resolve correctly
@@ -311,10 +313,13 @@ jobs:
           # We tunnel directly to the Nomad server's port 4646 but expose
           # it locally on port 80 so TF code using the domain name (no port)
           # connects correctly.
-          sudo gcloud compute start-iap-tunnel \
+          # sudo is needed for binding to port 80; --project is required
+          # because sudo strips environment variables.
+          sudo -E gcloud compute start-iap-tunnel \
             ${{ steps.discover.outputs.server_vm }} 4646 \
             --local-host-port=localhost:80 \
-            --zone=${{ steps.discover.outputs.server_zone }} &
+            --zone=${{ steps.discover.outputs.server_zone }} \
+            --project="${GCP_PROJECT_ID}" &
           TUNNEL_PID=$!
           echo "TUNNEL_PID=$TUNNEL_PID" >> $GITHUB_ENV
 
@@ -426,13 +431,16 @@ jobs:
           echo "server_zone=$SERVER_ZONE" >> $GITHUB_OUTPUT
 
       - name: Open IAP tunnel to Nomad
+        env:
+          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
         run: |
           echo "127.0.0.1 nomad.sandbox.e2b.staging.internal" | sudo tee -a /etc/hosts
 
-          sudo gcloud compute start-iap-tunnel \
+          sudo -E gcloud compute start-iap-tunnel \
             ${{ steps.discover.outputs.server_vm }} 4646 \
             --local-host-port=localhost:80 \
-            --zone=${{ steps.discover.outputs.server_zone }} &
+            --zone=${{ steps.discover.outputs.server_zone }} \
+            --project="${GCP_PROJECT_ID}" &
           TUNNEL_PID=$!
           echo "TUNNEL_PID=$TUNNEL_PID" >> $GITHUB_ENV
 
