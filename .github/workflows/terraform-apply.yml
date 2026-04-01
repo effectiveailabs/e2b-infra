@@ -14,16 +14,42 @@ on:
         type: choice
         options:
           - staging
+      phase:
+        description: 'Which phase to run'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - infra-only
+          - nomad-only
 
 # ──────────────────────────────────────────────────────────────
 # Job graph:
 #
-#   plan ──▶ apply  (no manual approval — dev-like flow)
+#   plan-infra ──▶ apply-infra ──▶ build-images ──▶ plan-nomad ──▶ apply-nomad
+#
+# Infra phase: GCP resources (VMs, buckets, firewall, IAM, etc.)
+#   - Runs from public GH runner via GCP APIs
+#
+# Build images: Ensures required Docker images exist in AR
+#   - Uses Cloud Build via GCP APIs
+#
+# Nomad phase: Nomad jobs, variables, services
+#   - Requires IAP tunnel to reach Nomad server in the VPC
 # ──────────────────────────────────────────────────────────────
 
 jobs:
-  plan:
-    name: Plan (staging)
+  # ════════════════════════════════════════════════
+  #  PHASE 1: Infrastructure (public GCP APIs)
+  # ════════════════════════════════════════════════
+
+  plan-infra:
+    name: Plan infra
+    if: >-
+      github.event_name == 'push' ||
+      github.event.inputs.phase == 'all' ||
+      github.event.inputs.phase == 'infra-only'
     runs-on: ubuntu-22.04
     permissions:
       contents: read
@@ -45,7 +71,7 @@ jobs:
           workload_identity_provider: ${{ secrets.GH_WORKLOAD_IDENTITY_PROVIDER }}
           install_gcloud: 'true'
 
-      - name: Terraform plan
+      - name: Terraform plan (infra)
         id: tf_plan
         working-directory: iac/provider-gcp
         env:
@@ -90,19 +116,19 @@ jobs:
         if: steps.plan_output.outputs.has_changes == 'true'
         uses: actions/upload-artifact@v4
         with:
-          name: tfplan-staging
+          name: tfplan-infra
           path: |
             iac/provider-gcp/tfplan
             iac/provider-gcp/plan.out
             iac/provider-gcp/plan.show
 
-  apply:
-    name: Apply (staging)
-    needs: plan
-    if: needs.plan.outputs.has_changes == 'true'
+  apply-infra:
+    name: Apply infra
+    needs: plan-infra
+    if: needs.plan-infra.outputs.has_changes == 'true'
     runs-on: ubuntu-22.04
     concurrency:
-      group: terraform-apply-e2b-staging
+      group: terraform-apply-e2b-infra
       cancel-in-progress: false
     permissions:
       contents: read
@@ -124,10 +150,10 @@ jobs:
       - name: Download plan artifact
         uses: actions/download-artifact@v4
         with:
-          name: tfplan-staging
+          name: tfplan-infra
           path: iac/provider-gcp
 
-      - name: Terraform apply
+      - name: Terraform apply (infra)
         working-directory: iac/provider-gcp
         env:
           TF_IN_AUTOMATION: 'true'
@@ -138,3 +164,288 @@ jobs:
             -compact-warnings \
             -parallelism=20 \
             tfplan
+
+  # ════════════════════════════════════════════════
+  #  BUILD: Ensure required Docker images exist
+  # ════════════════════════════════════════════════
+
+  build-images:
+    name: Build missing images
+    needs: apply-infra
+    if: >-
+      always() &&
+      (needs.apply-infra.result == 'success' || needs.apply-infra.result == 'skipped') &&
+      (
+        github.event_name == 'push' ||
+        github.event.inputs.phase == 'all' ||
+        github.event.inputs.phase == 'nomad-only'
+      )
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v2
+        with:
+          project_id: ${{ vars.GCP_PROJECT_ID }}
+          workload_identity_provider: ${{ secrets.GH_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: 'github-actions-deployer@${{ vars.GCP_PROJECT_ID }}.iam.gserviceaccount.com'
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Build missing images
+        env:
+          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+          GCP_REGION: ${{ vars.GCP_REGION }}
+        run: |
+          AR_REPO="${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/e2b-core"
+
+          # Images required by the Nomad TF module (see nomad/images.tf)
+          REQUIRED_IMAGES="api db-migrator docker-reverse-proxy client-proxy"
+
+          for img in $REQUIRED_IMAGES; do
+            # Check if image:latest already exists in AR
+            if gcloud artifacts docker images describe "${AR_REPO}/${img}:latest" >/dev/null 2>&1; then
+              echo "✅ ${img}:latest exists"
+              continue
+            fi
+
+            echo "🔨 Building ${img}..."
+            case "$img" in
+              db-migrator)
+                # db-migrator needs packages/shared + packages/db as build context
+                # The Dockerfile expects ./shared and ./db at context root
+                gcloud builds submit \
+                  --tag "${AR_REPO}/db-migrator:latest" \
+                  --dockerfile db/Dockerfile \
+                  --timeout=600s \
+                  packages/
+                ;;
+              *)
+                echo "⚠️  No build rule for ${img} — skipping (must be pre-built)"
+                ;;
+            esac
+          done
+
+  # ════════════════════════════════════════════════
+  #  PHASE 2: Nomad jobs (requires IAP tunnel)
+  # ════════════════════════════════════════════════
+
+  plan-nomad:
+    name: Plan nomad
+    needs: build-images
+    if: >-
+      always() &&
+      (needs.build-images.result == 'success' || needs.build-images.result == 'skipped') &&
+      (
+        github.event_name == 'push' ||
+        github.event.inputs.phase == 'all' ||
+        github.event.inputs.phase == 'nomad-only'
+      )
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+      id-token: write
+    outputs:
+      has_changes: ${{ steps.plan_output.outputs.has_changes }}
+      plan_summary: ${{ steps.plan_output.outputs.plan_summary }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup environment
+        uses: ./.github/actions/deploy-setup
+        with:
+          environment: staging
+          gcp_project_id: ${{ vars.GCP_PROJECT_ID }}
+          gcp_region: ${{ vars.GCP_REGION }}
+          terraform_state_bucket: ${{ vars.TERRAFORM_STATE_BUCKET }}
+          workload_identity_provider: ${{ secrets.GH_WORKLOAD_IDENTITY_PROVIDER }}
+          install_gcloud: 'true'
+
+      - name: Install dependencies
+        run: |
+          # xxd is needed by checksum.sh
+          sudo apt-get update -qq && sudo apt-get install -y -qq xxd
+
+          # Install nomad CLI (needed by get-nomad-job-count.sh)
+          curl -sL https://releases.hashicorp.com/nomad/1.7.7/nomad_1.7.7_linux_amd64.zip -o /tmp/nomad.zip
+          sudo unzip -q /tmp/nomad.zip -d /usr/local/bin/
+
+      - name: Discover Nomad server
+        id: discover
+        run: |
+          # Find the Nomad server VM (managed by the server instance group)
+          SERVER_VM=$(gcloud compute instances list \
+            --filter="name~e2b-staging-orch-server AND status=RUNNING" \
+            --format="value(name)" \
+            --limit=1)
+          SERVER_ZONE=$(gcloud compute instances list \
+            --filter="name=$SERVER_VM AND status=RUNNING" \
+            --format="value(zone)" \
+            --limit=1)
+          echo "server_vm=$SERVER_VM" >> $GITHUB_OUTPUT
+          echo "server_zone=$SERVER_ZONE" >> $GITHUB_OUTPUT
+          echo "Found Nomad server: $SERVER_VM in $SERVER_ZONE"
+
+      - name: Open IAP tunnel to Nomad
+        run: |
+          gcloud compute start-iap-tunnel \
+            ${{ steps.discover.outputs.server_vm }} 4646 \
+            --local-host-port=localhost:4646 \
+            --zone=${{ steps.discover.outputs.server_zone }} &
+          TUNNEL_PID=$!
+          echo "TUNNEL_PID=$TUNNEL_PID" >> $GITHUB_ENV
+
+          # Wait for tunnel to establish
+          for i in $(seq 1 30); do
+            if curl -s --connect-timeout 2 http://localhost:4646/v1/status/leader > /dev/null 2>&1; then
+              echo "IAP tunnel established"
+              break
+            fi
+            sleep 2
+          done
+
+      - name: Terraform plan (nomad)
+        id: tf_plan
+        working-directory: iac/provider-gcp
+        env:
+          TF_IN_AUTOMATION: 'true'
+          NOMAD_ADDR: http://localhost:4646
+        run: |
+          terraform plan \
+            -input=false \
+            -no-color \
+            -detailed-exitcode \
+            -compact-warnings \
+            -parallelism=10 \
+            -var-file=environments/staging.tfvars \
+            -target=module.nomad \
+            -out=tfplan-nomad 2>&1 | tee plan.out
+          plan_exit=${PIPESTATUS[0]}
+
+          if [ $plan_exit -eq 0 ] || [ $plan_exit -eq 2 ]; then
+            terraform show -no-color tfplan-nomad > plan.show
+          fi
+          echo "exit_code=$plan_exit" >> $GITHUB_OUTPUT
+          if [ $plan_exit -ne 0 ] && [ $plan_exit -ne 2 ]; then
+            echo "::error::Terraform plan exited with unexpected code $plan_exit"
+            exit 1
+          fi
+
+      - name: Extract plan summary
+        id: plan_output
+        working-directory: iac/provider-gcp
+        run: |
+          if [ "${{ steps.tf_plan.outputs.exit_code }}" != "2" ]; then
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          echo "has_changes=true" >> $GITHUB_OUTPUT
+
+          summary=$(grep -E '^Plan:|^No changes' plan.show | tail -1)
+          echo "plan_summary=$summary" >> $GITHUB_OUTPUT
+
+      - name: Upload plan artifact
+        if: steps.plan_output.outputs.has_changes == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: tfplan-nomad
+          path: |
+            iac/provider-gcp/tfplan-nomad
+            iac/provider-gcp/plan.out
+            iac/provider-gcp/plan.show
+
+      - name: Close IAP tunnel
+        if: always()
+        run: kill $TUNNEL_PID 2>/dev/null || true
+
+  apply-nomad:
+    name: Apply nomad
+    needs: plan-nomad
+    if: needs.plan-nomad.outputs.has_changes == 'true'
+    runs-on: ubuntu-22.04
+    concurrency:
+      group: terraform-apply-e2b-nomad
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup environment
+        uses: ./.github/actions/deploy-setup
+        with:
+          environment: staging
+          gcp_project_id: ${{ vars.GCP_PROJECT_ID }}
+          gcp_region: ${{ vars.GCP_REGION }}
+          terraform_state_bucket: ${{ vars.TERRAFORM_STATE_BUCKET }}
+          workload_identity_provider: ${{ secrets.GH_WORKLOAD_IDENTITY_PROVIDER }}
+          install_gcloud: 'true'
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq xxd
+          curl -sL https://releases.hashicorp.com/nomad/1.7.7/nomad_1.7.7_linux_amd64.zip -o /tmp/nomad.zip
+          sudo unzip -q /tmp/nomad.zip -d /usr/local/bin/
+
+      - name: Discover Nomad server
+        id: discover
+        run: |
+          SERVER_VM=$(gcloud compute instances list \
+            --filter="name~e2b-staging-orch-server AND status=RUNNING" \
+            --format="value(name)" \
+            --limit=1)
+          SERVER_ZONE=$(gcloud compute instances list \
+            --filter="name=$SERVER_VM AND status=RUNNING" \
+            --format="value(zone)" \
+            --limit=1)
+          echo "server_vm=$SERVER_VM" >> $GITHUB_OUTPUT
+          echo "server_zone=$SERVER_ZONE" >> $GITHUB_OUTPUT
+
+      - name: Open IAP tunnel to Nomad
+        run: |
+          gcloud compute start-iap-tunnel \
+            ${{ steps.discover.outputs.server_vm }} 4646 \
+            --local-host-port=localhost:4646 \
+            --zone=${{ steps.discover.outputs.server_zone }} &
+          TUNNEL_PID=$!
+          echo "TUNNEL_PID=$TUNNEL_PID" >> $GITHUB_ENV
+
+          for i in $(seq 1 30); do
+            if curl -s --connect-timeout 2 http://localhost:4646/v1/status/leader > /dev/null 2>&1; then
+              echo "IAP tunnel established"
+              break
+            fi
+            sleep 2
+          done
+
+      - name: Download plan artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: tfplan-nomad
+          path: iac/provider-gcp
+
+      - name: Terraform apply (nomad)
+        working-directory: iac/provider-gcp
+        env:
+          TF_IN_AUTOMATION: 'true'
+          NOMAD_ADDR: http://localhost:4646
+        run: |
+          terraform apply \
+            -auto-approve \
+            -input=false \
+            -compact-warnings \
+            -parallelism=10 \
+            tfplan-nomad
+
+      - name: Close IAP tunnel
+        if: always()
+        run: kill $TUNNEL_PID 2>/dev/null || true

@@ -40,3 +40,12 @@ resource "google_project_iam_member" "infra_sa_compute_viewer" {
   role    = "roles/compute.viewer"
   member  = "serviceAccount:${google_service_account.infra_instances_service_account.email}"
 }
+
+# The default compute SA is used by Cloud Build to push images to AR.
+# It only has artifactregistry.reader by default; writer is needed for
+# docker push during image builds.
+resource "google_project_iam_member" "default_compute_sa_ar_writer" {
+  project = var.gcp_project_id
+  role    = "roles/artifactregistry.writer"
+  member  = "serviceAccount:${var.project_number}-compute@developer.gserviceaccount.com"
+}
