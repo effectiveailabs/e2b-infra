@@ -301,16 +301,26 @@ jobs:
 
       - name: Open IAP tunnel to Nomad
         run: |
-          gcloud compute start-iap-tunnel \
+          # Map the internal Nomad DNS to localhost so both the Nomad TF
+          # provider and external data source scripts resolve correctly
+          echo "127.0.0.1 nomad.sandbox.e2b.staging.internal" | sudo tee -a /etc/hosts
+
+          # Tunnel to port 80 to match the internal LB's forwarding rule.
+          # Inside the VPC, the wildcard DNS resolves to the internal LB on
+          # port 80, which routes to the Nomad backend on port 4646.
+          # We tunnel directly to the Nomad server's port 4646 but expose
+          # it locally on port 80 so TF code using the domain name (no port)
+          # connects correctly.
+          sudo gcloud compute start-iap-tunnel \
             ${{ steps.discover.outputs.server_vm }} 4646 \
-            --local-host-port=localhost:4646 \
+            --local-host-port=localhost:80 \
             --zone=${{ steps.discover.outputs.server_zone }} &
           TUNNEL_PID=$!
           echo "TUNNEL_PID=$TUNNEL_PID" >> $GITHUB_ENV
 
           # Wait for tunnel to establish
           for i in $(seq 1 30); do
-            if curl -s --connect-timeout 2 http://localhost:4646/v1/status/leader > /dev/null 2>&1; then
+            if curl -s --connect-timeout 2 http://nomad.sandbox.e2b.staging.internal/v1/status/leader > /dev/null 2>&1; then
               echo "IAP tunnel established"
               break
             fi
@@ -322,7 +332,6 @@ jobs:
         working-directory: iac/provider-gcp
         env:
           TF_IN_AUTOMATION: 'true'
-          NOMAD_ADDR: http://localhost:4646
         run: |
           terraform plan \
             -input=false \
@@ -418,15 +427,17 @@ jobs:
 
       - name: Open IAP tunnel to Nomad
         run: |
-          gcloud compute start-iap-tunnel \
+          echo "127.0.0.1 nomad.sandbox.e2b.staging.internal" | sudo tee -a /etc/hosts
+
+          sudo gcloud compute start-iap-tunnel \
             ${{ steps.discover.outputs.server_vm }} 4646 \
-            --local-host-port=localhost:4646 \
+            --local-host-port=localhost:80 \
             --zone=${{ steps.discover.outputs.server_zone }} &
           TUNNEL_PID=$!
           echo "TUNNEL_PID=$TUNNEL_PID" >> $GITHUB_ENV
 
           for i in $(seq 1 30); do
-            if curl -s --connect-timeout 2 http://localhost:4646/v1/status/leader > /dev/null 2>&1; then
+            if curl -s --connect-timeout 2 http://nomad.sandbox.e2b.staging.internal/v1/status/leader > /dev/null 2>&1; then
               echo "IAP tunnel established"
               break
             fi
@@ -443,7 +454,6 @@ jobs:
         working-directory: iac/provider-gcp
         env:
           TF_IN_AUTOMATION: 'true'
-          NOMAD_ADDR: http://localhost:4646
         run: |
           terraform apply \
             -auto-approve \
