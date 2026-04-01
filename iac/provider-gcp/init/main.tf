@@ -49,3 +49,11 @@ resource "google_project_iam_member" "default_compute_sa_ar_writer" {
   role    = "roles/artifactregistry.writer"
   member  = "serviceAccount:${var.project_number}-compute@developer.gserviceaccount.com"
 }
+
+# The CI deployer SA needs IAP tunnel access to reach the Nomad server
+# inside the VPC during the Nomad deploy phase (Phase 2 of CI).
+resource "google_project_iam_member" "deployer_sa_iap_tunnel" {
+  project = var.gcp_project_id
+  role    = "roles/iap.tunnelResourceAccessor"
+  member  = "serviceAccount:github-actions-deployer@${var.gcp_project_id}.iam.gserviceaccount.com"
+}
