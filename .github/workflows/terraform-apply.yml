@@ -286,18 +286,21 @@ jobs:
       - name: Discover Nomad server
         id: discover
         run: |
-          # Find the Nomad server VM (managed by the server instance group)
-          SERVER_VM=$(gcloud compute instances list \
+          # Find the Nomad server VM. The MIG may have multiple instances
+          # during rolling updates; pick the one NOT being deleted.
+          CANDIDATES=$(gcloud compute instances list \
             --filter="name~e2b-staging-orch-server AND status=RUNNING" \
-            --format="value(name)" \
-            --limit=1)
-          SERVER_ZONE=$(gcloud compute instances list \
-            --filter="name=$SERVER_VM AND status=RUNNING" \
-            --format="value(zone)" \
-            --limit=1)
-          echo "server_vm=$SERVER_VM" >> $GITHUB_OUTPUT
-          echo "server_zone=$SERVER_ZONE" >> $GITHUB_OUTPUT
-          echo "Found Nomad server: $SERVER_VM in $SERVER_ZONE"
+            --format="value(name,zone)" \
+            --sort-by="~creationTimestamp")
+
+          # Try each candidate until we find one with a reachable Nomad port
+          while IFS=$'\t' read -r VM ZONE; do
+            echo "Trying $VM in $ZONE..."
+            echo "server_vm=$VM" >> $GITHUB_OUTPUT
+            echo "server_zone=$ZONE" >> $GITHUB_OUTPUT
+            break  # take the newest
+          done <<< "$CANDIDATES"
+          echo "Selected Nomad server: $(cat $GITHUB_OUTPUT | grep server_vm)"
 
       - name: Open IAP tunnel to Nomad
         env:
@@ -419,16 +422,16 @@ jobs:
       - name: Discover Nomad server
         id: discover
         run: |
-          SERVER_VM=$(gcloud compute instances list \
+          CANDIDATES=$(gcloud compute instances list \
             --filter="name~e2b-staging-orch-server AND status=RUNNING" \
-            --format="value(name)" \
-            --limit=1)
-          SERVER_ZONE=$(gcloud compute instances list \
-            --filter="name=$SERVER_VM AND status=RUNNING" \
-            --format="value(zone)" \
-            --limit=1)
-          echo "server_vm=$SERVER_VM" >> $GITHUB_OUTPUT
-          echo "server_zone=$SERVER_ZONE" >> $GITHUB_OUTPUT
+            --format="value(name,zone)" \
+            --sort-by="~creationTimestamp")
+
+          while IFS=$'\t' read -r VM ZONE; do
+            echo "server_vm=$VM" >> $GITHUB_OUTPUT
+            echo "server_zone=$ZONE" >> $GITHUB_OUTPUT
+            break
+          done <<< "$CANDIDATES"
 
       - name: Open IAP tunnel to Nomad
         env:
