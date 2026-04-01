@@ -249,7 +249,16 @@ resource "google_compute_firewall" "internal_remote_connection_firewall_ingress"
 
   allow {
     protocol = "tcp"
-    ports    = ["22", "3389", "${var.nomad_port}"]
+    ports = [
+      "22",
+      "3389",
+      "${var.nomad_port}",
+      "${var.api_port.port}",
+      "${var.ingress_port.port}",
+      "${var.docker_reverse_proxy_port.port}",
+      "${var.client_proxy_health_port.port}",
+      "${var.client_proxy_port.port}",
+    ]
   }
 
   priority      = 900
