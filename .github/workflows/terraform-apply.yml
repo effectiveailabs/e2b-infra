@@ -220,10 +220,16 @@ jobs:
               db-migrator)
                 # db-migrator needs packages/shared + packages/db as build context
                 # The Dockerfile expects ./shared and ./db at context root
+                cat > /tmp/cloudbuild-db-migrator.yaml << 'CBEOF'
+          steps:
+            - name: 'gcr.io/cloud-builders/docker'
+              args: ['build', '-t', '$_AR_REPO/db-migrator:latest', '-f', 'db/Dockerfile', '.']
+          images: ['$_AR_REPO/db-migrator:latest']
+          timeout: 600s
+          CBEOF
                 gcloud builds submit \
-                  --tag "${AR_REPO}/db-migrator:latest" \
-                  --dockerfile db/Dockerfile \
-                  --timeout=600s \
+                  --config=/tmp/cloudbuild-db-migrator.yaml \
+                  --substitutions="_AR_REPO=${AR_REPO}" \
                   packages/
                 ;;
               *)
