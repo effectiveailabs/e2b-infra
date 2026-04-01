@@ -84,6 +84,8 @@ module "api" {
   auth_db_max_open_connections            = var.auth_db_max_open_connections
   auth_db_min_idle_connections            = var.auth_db_min_idle_connections
   db_migrator_docker_image                = data.google_artifact_registry_docker_image.db_migrator_image.self_link
+
+  job_env_vars = local.merged_env_vars
 }
 
 module "redis" {
