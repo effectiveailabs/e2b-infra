@@ -274,6 +274,7 @@ module "nomad" {
   fc_env_pipeline_bucket_name = module.init.fc_env_pipeline_bucket_name
   envd_timeout                = var.envd_timeout
   orchestrator_env_vars       = var.orchestrator_env_vars
+  loki_url                    = var.loki_url
 
   builder_node_pool                   = var.build_node_pool
   template_manager_port               = var.template_manager_port

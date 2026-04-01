@@ -1,7 +1,25 @@
+resource "random_password" "volume_token_key" {
+  length  = 32
+  special = false
+}
+
 locals {
   redis_url           = "redis.service.consul:${var.redis_port.port}"
   redis_cluster_url   = ""
   redis_tls_ca_base64 = ""
+
+  # Env vars passed to the API job (and any job that uses orchestrator_env_vars).
+  # Mirrors the AWS provider's job_env_vars block.
+  default_env_vars = {
+    LOKI_URL                      = var.loki_url
+    VOLUME_TOKEN_ISSUER           = var.domain_name
+    VOLUME_TOKEN_SIGNING_KEY      = "HMAC:${base64encode(random_password.volume_token_key.result)}"
+    VOLUME_TOKEN_SIGNING_KEY_NAME = "e2b-volume-token-key"
+    VOLUME_TOKEN_DURATION         = "1h"
+    VOLUME_TOKEN_SIGNING_METHOD   = "HS256"
+  }
+
+  merged_env_vars = merge(local.default_env_vars, var.orchestrator_env_vars)
 }
 
 # API
@@ -158,7 +176,7 @@ module "orchestrator" {
   consul_token = var.consul_acl_token_secret
   domain_name  = var.domain_name
 
-  job_env_vars = var.orchestrator_env_vars
+  job_env_vars = local.merged_env_vars
 }
 
 data "google_storage_bucket_object" "template_manager" {

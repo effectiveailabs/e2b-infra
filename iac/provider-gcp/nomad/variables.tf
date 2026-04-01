@@ -106,3 +106,8 @@ variable "orchestrator_env_vars" {
   type    = map(string)
   default = {}
 }
+
+variable "loki_url" {
+  type    = string
+  default = "http://localhost:3100"
+}
