@@ -453,3 +453,7 @@ variable "orchestrator_env_vars" {
   default = {}
 }
 
+variable "loki_url" {
+  type    = string
+  default = "http://localhost:3100"
+}
