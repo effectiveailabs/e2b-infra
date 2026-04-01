@@ -23,15 +23,11 @@ on:
 
 jobs:
   plan:
-    name: Plan (${{ matrix.environment }})
+    name: Plan (staging)
     runs-on: ubuntu-22.04
     permissions:
       contents: read
       id-token: write
-    strategy:
-      fail-fast: false
-      matrix:
-        environment: [staging]
     outputs:
       has_changes: ${{ steps.plan_output.outputs.has_changes }}
       plan_summary: ${{ steps.plan_output.outputs.plan_summary }}
@@ -42,7 +38,7 @@ jobs:
       - name: Setup environment
         uses: ./.github/actions/deploy-setup
         with:
-          environment: ${{ matrix.environment }}
+          environment: staging
           gcp_project_id: ${{ vars.GCP_PROJECT_ID }}
           gcp_region: ${{ vars.GCP_REGION }}
           terraform_state_bucket: ${{ vars.TERRAFORM_STATE_BUCKET }}
@@ -63,7 +59,7 @@ jobs:
             -detailed-exitcode \
             -compact-warnings \
             -parallelism=20 \
-            -var-file=environments/${{ matrix.environment }}.tfvars \
+            -var-file=environments/staging.tfvars \
             $TARGETS \
             -out=tfplan 2>&1 | tee plan.out
           plan_exit=${PIPESTATUS[0]}
@@ -94,23 +90,19 @@ jobs:
         if: steps.plan_output.outputs.has_changes == 'true'
         uses: actions/upload-artifact@v4
         with:
-          name: tfplan-${{ matrix.environment }}
+          name: tfplan-staging
           path: |
             iac/provider-gcp/tfplan
             iac/provider-gcp/plan.out
             iac/provider-gcp/plan.show
 
   apply:
-    name: Apply (${{ matrix.environment }})
+    name: Apply (staging)
     needs: plan
     if: needs.plan.outputs.has_changes == 'true'
     runs-on: ubuntu-22.04
-    strategy:
-      fail-fast: false
-      matrix:
-        environment: [staging]
     concurrency:
-      group: terraform-apply-e2b-${{ matrix.environment }}
+      group: terraform-apply-e2b-staging
       cancel-in-progress: false
     permissions:
       contents: read
@@ -122,7 +114,7 @@ jobs:
       - name: Setup environment
         uses: ./.github/actions/deploy-setup
         with:
-          environment: ${{ matrix.environment }}
+          environment: staging
           gcp_project_id: ${{ vars.GCP_PROJECT_ID }}
           gcp_region: ${{ vars.GCP_REGION }}
           terraform_state_bucket: ${{ vars.TERRAFORM_STATE_BUCKET }}
@@ -132,7 +124,7 @@ jobs:
       - name: Download plan artifact
         uses: actions/download-artifact@v4
         with:
-          name: tfplan-${{ matrix.environment }}
+          name: tfplan-staging
           path: iac/provider-gcp
 
       - name: Terraform apply
