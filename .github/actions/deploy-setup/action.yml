@@ -37,6 +37,7 @@ runs:
       with:
         project_id: ${{ inputs.gcp_project_id }}
         workload_identity_provider: ${{ inputs.workload_identity_provider }}
+        service_account: 'github-actions-deployer@${{ inputs.gcp_project_id }}.iam.gserviceaccount.com'
 
     - name: Set up Cloud SDK
       if: inputs.install_gcloud == 'true'
